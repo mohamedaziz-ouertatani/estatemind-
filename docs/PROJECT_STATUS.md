@@ -250,8 +250,17 @@ python main.py
 
 ## Dependencies
 
+### Security Status ✅
+```
+npm audit: found 0 vulnerabilities
+```
+
+**Recent Security Updates**:
+- Next.js upgraded to **15.5.12** (from 14.2.35) to fix critical DoS vulnerability
+- All dependencies audited and secure
+
 ### Production Dependencies (24)
-- next: ^14.2.0
+- next: ^15.0.8 (installed: 15.5.12)
 - react: ^18.3.0
 - @prisma/client: ^5.19.0
 - next-auth: ^4.24.0

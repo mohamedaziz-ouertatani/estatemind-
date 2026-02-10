@@ -3,12 +3,13 @@ import { prisma } from "@/lib/db"
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id } = await params
     const property = await prisma.property.findUnique({
       where: {
-        id: params.id
+        id
       },
       include: {
         owner: {
@@ -31,7 +32,7 @@ export async function GET(
     
     // Increment views
     await prisma.property.update({
-      where: { id: params.id },
+      where: { id },
       data: { views: { increment: 1 } }
     })
     
@@ -48,15 +49,16 @@ export async function GET(
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // TODO: Add authentication and ownership check
     
+    const { id } = await params
     const body = await req.json()
     
     const property = await prisma.property.update({
-      where: { id: params.id },
+      where: { id },
       data: body
     })
     
@@ -73,13 +75,14 @@ export async function PUT(
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     // TODO: Add authentication and ownership check
     
+    const { id } = await params
     await prisma.property.delete({
-      where: { id: params.id }
+      where: { id }
     })
     
     return NextResponse.json({ success: true })
