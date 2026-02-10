@@ -1,0 +1,293 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tunis",
+        "name_ar": "تونس",
+        "population": 1056247
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.1815, 36.8065]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ariana",
+        "name_ar": "أريانة",
+        "population": 576088
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.1956, 36.8625]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Ben Arous",
+        "name_ar": "بن عروس",
+        "population": 631842
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.2194, 36.7469]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Manouba",
+        "name_ar": "منوبة",
+        "population": 379518
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.0975, 36.8089]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Nabeul",
+        "name_ar": "نابل",
+        "population": 787920
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.7333, 36.4561]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Zaghouan",
+        "name_ar": "زغوان",
+        "population": 176945
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.1422, 36.4028]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Bizerte",
+        "name_ar": "بنزرت",
+        "population": 568219
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.8739, 37.2744]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Béja",
+        "name_ar": "باجة",
+        "population": 303032
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.1819, 36.7256]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Jendouba",
+        "name_ar": "جندوبة",
+        "population": 401477
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [8.7803, 36.5011]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kef",
+        "name_ar": "الكاف",
+        "population": 243156
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [8.7047, 36.1741]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Siliana",
+        "name_ar": "سليانة",
+        "population": 223087
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.3697, 36.0847]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kairouan",
+        "name_ar": "القيروان",
+        "population": 570559
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.0982, 35.6781]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kasserine",
+        "name_ar": "القصرين",
+        "population": 439243
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [8.8364, 35.1678]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sidi Bouzid",
+        "name_ar": "سيدي بوزيد",
+        "population": 429912
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [9.4839, 35.0381]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sousse",
+        "name_ar": "سوسة",
+        "population": 674971
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.6364, 35.8256]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Monastir",
+        "name_ar": "المنستير",
+        "population": 548828
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.8269, 35.7643]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Mahdia",
+        "name_ar": "المهدية",
+        "population": 410812
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [11.0622, 35.5047]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Sfax",
+        "name_ar": "صفاقس",
+        "population": 955421
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.7603, 34.7406]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gafsa",
+        "name_ar": "قفصة",
+        "population": 337331
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [8.7842, 34.4250]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tozeur",
+        "name_ar": "توزر",
+        "population": 107912
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [8.1339, 33.9197]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Kebili",
+        "name_ar": "قبلي",
+        "population": 156961
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [8.9694, 33.7047]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Gabès",
+        "name_ar": "قابس",
+        "population": 374300
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.0982, 33.8815]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Medenine",
+        "name_ar": "مدنين",
+        "population": 479520
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.5053, 33.3547]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "name": "Tataouine",
+        "name_ar": "تطاوين",
+        "population": 149453
+      },
+      "geometry": {
+        "type": "Point",
+        "coordinates": [10.4517, 32.9297]
+      }
+    }
+  ]
+}

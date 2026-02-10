@@ -30,7 +30,7 @@ export default function HomePage() {
               <Button variant="ghost">Connexion</Button>
             </Link>
             <Link href="/register">
-              <Button>S'inscrire</Button>
+              <Button>S&apos;inscrire</Button>
             </Link>
           </div>
         </div>
@@ -39,7 +39,7 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="container mx-auto px-4 py-20 text-center">
         <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
-          L'Intelligence Immobilière <br />
+          L&apos;Intelligence Immobilière <br />
           <span className="text-blue-600">en Tunisie</span>
         </h1>
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
@@ -68,7 +68,7 @@ export default function HomePage() {
             <CardHeader>
               <CardTitle>Évaluation IA</CardTitle>
               <CardDescription>
-                Obtenez une estimation précise de la valeur de n'importe quelle propriété en Tunisie
+                Obtenez une estimation précise de la valeur de n&apos;importe quelle propriété en Tunisie
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -130,15 +130,15 @@ export default function HomePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Scout d'Investissement</CardTitle>
+              <CardTitle>Scout d&apos;Investissement</CardTitle>
               <CardDescription>
                 Recevez les meilleures opportunités chaque semaine
               </CardDescription>
             </CardHeader>
             <CardContent>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li>• Détection d'opportunités</li>
-                <li>• Score d'investissement</li>
+                <li>• Détection d&apos;opportunités</li>
+                <li>• Score d&apos;investissement</li>
                 <li>• Analyse risques/bénéfices</li>
               </ul>
             </CardContent>
@@ -252,7 +252,7 @@ export default function HomePage() {
                 <span className="text-lg font-bold">EstateMind</span>
               </div>
               <p className="text-sm text-gray-600">
-                L'intelligence immobilière en Tunisie
+                L&apos;intelligence immobilière en Tunisie
               </p>
             </div>
             <div>
