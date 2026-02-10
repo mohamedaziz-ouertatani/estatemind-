@@ -1,0 +1,346 @@
+// Prisma schema for EstateMind Tunisia
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// USERS & AUTHENTICATION
+// ============================================================
+
+model User {
+  id               String           @id @default(cuid())
+  email            String           @unique
+  name             String?
+  phone            String?
+  password         String
+  userType         UserType         @default(NORMAL)
+  subscriptionTier SubscriptionTier @default(FREE)
+  valuationCredits Int              @default(3)
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+
+  properties       Property[]
+  valuations       Valuation[]
+  savedProperties  SavedProperty[]
+  searchAlerts     SearchAlert[]
+  legalQueries     LegalQuery[]
+  portfolioItems   Portfolio[]
+}
+
+enum UserType {
+  NORMAL
+  INVESTOR
+  AGENT
+  ADMIN
+}
+
+enum SubscriptionTier {
+  FREE
+  BASIC_19
+  INVESTOR_149
+  INVESTOR_PRO_299
+  AGENCY_499
+}
+
+// ============================================================
+// PROPERTIES
+// ============================================================
+
+model Property {
+  id              String            @id @default(cuid())
+  title           String
+  description     String            @db.Text
+  propertyType    PropertyType
+  transactionType TransactionType
+
+  // Location
+  governorate  String
+  delegation   String
+  neighborhood String?
+  address      String?
+  latitude     Float
+  longitude    Float
+
+  // Details
+  price      Int
+  size       Float // m²
+  bedrooms   Int?
+  bathrooms  Int?
+  floor      Int?
+  hasParking Boolean @default(false)
+  hasElevator Boolean @default(false)
+  hasGarden  Boolean @default(false)
+  hasPool    Boolean @default(false)
+  hasSeaView Boolean @default(false)
+
+  // Media
+  images      String[]
+  virtualTour String?
+
+  // Metadata
+  listingDate DateTime       @default(now())
+  status      PropertyStatus @default(ACTIVE)
+  views       Int            @default(0)
+
+  // AI Analysis
+  aiValuation         Int?
+  valuationConfidence Float?
+  isPriceFair         Boolean?
+
+  // Relations
+  ownerId        String
+  owner          User            @relation(fields: [ownerId], references: [id])
+  valuations     Valuation[]
+  savedBy        SavedProperty[]
+  portfolioItems Portfolio[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([governorate])
+  @@index([propertyType])
+  @@index([transactionType])
+  @@index([status])
+  @@index([price])
+}
+
+enum PropertyType {
+  APARTMENT
+  HOUSE
+  VILLA
+  LAND
+  COMMERCIAL
+  OFFICE
+}
+
+enum TransactionType {
+  SALE
+  RENT
+  BOTH
+}
+
+enum PropertyStatus {
+  ACTIVE
+  PENDING
+  SOLD
+  RENTED
+  INACTIVE
+}
+
+// ============================================================
+// VALUATIONS
+// ============================================================
+
+model Valuation {
+  id              String   @id @default(cuid())
+  propertyId      String
+  property        Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  userId          String
+  user            User     @relation(fields: [userId], references: [id])
+
+  estimatedValue  Int
+  confidenceScore Float
+  minValue        Int
+  maxValue        Int
+
+  // Analysis breakdown
+  locationScore   Int
+  sizeScore       Int
+  conditionScore  Int
+  amenitiesScore  Int
+
+  comparables Json // Array of comparable properties
+  aiInsights  String @db.Text
+
+  createdAt DateTime @default(now())
+
+  @@index([propertyId])
+  @@index([userId])
+}
+
+// ============================================================
+// NEIGHBORHOODS
+// ============================================================
+
+model Neighborhood {
+  id          String @id @default(cuid())
+  name        String
+  governorate String
+  delegation  String
+
+  // Scores (0-100)
+  overallScore    Int
+  housingScore    Int
+  schoolsScore    Int
+  transportScore  Int
+  amenitiesScore  Int
+  lifestyleScore  Int
+  safetyScore     Int
+
+  // Market data
+  avgPricePerM2  Int
+  rentalYield    Float
+  daysOnMarket   Int
+  priceGrowthYTD Float
+
+  // Description
+  description    String @db.Text
+  schools        Json
+  transportation Json
+  amenities      Json
+
+  // Future outlook
+  gentrificationScore Int?
+  futureProjects      Json?
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([name, governorate, delegation])
+  @@index([governorate])
+}
+
+// ============================================================
+// SAVED PROPERTIES
+// ============================================================
+
+model SavedProperty {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([userId, propertyId])
+  @@index([userId])
+}
+
+// ============================================================
+// SEARCH ALERTS
+// ============================================================
+
+model SearchAlert {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  name        String
+  criteria    Json // Search criteria object
+  isActive    Boolean  @default(true)
+  frequency   String   @default("DAILY") // DAILY, WEEKLY
+  lastNotified DateTime?
+  createdAt   DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ============================================================
+// INVESTMENT FEATURES
+// ============================================================
+
+model Portfolio {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  purchasePrice       Int
+  purchaseDate        DateTime
+  currentValue        Int
+  lastValuationDate   DateTime
+
+  // Rental info
+  monthlyRent   Int?
+  annualIncome  Int?
+  grossYield    Float?
+  netYield      Float?
+  occupancyRate Float?
+
+  // Performance
+  appreciation Float
+  totalReturn  Float
+  annualReturn Float
+
+  // Status
+  status PortfolioStatus @default(OWNED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, propertyId])
+  @@index([userId])
+}
+
+enum PortfolioStatus {
+  OWNED
+  UNDER_CONTRACT
+  SOLD
+  FORECLOSED
+}
+
+model InvestmentOpportunity {
+  id          String   @id @default(cuid())
+  propertyId  String
+
+  opportunityScore Int   // 0-100
+  discountPercent  Float // % below market
+  estimatedYield   Float
+
+  reasons          Json   // Array of reasons why it's good
+  risks            Json   // Array of risks
+  aiRecommendation String @db.Text
+
+  status        OpportunityStatus @default(ACTIVE)
+  notifiedUsers String[] // User IDs
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  @@index([status])
+  @@index([propertyId])
+}
+
+enum OpportunityStatus {
+  ACTIVE
+  EXPIRED
+  SOLD
+}
+
+// ============================================================
+// LEGAL & SUPPORT
+// ============================================================
+
+model LegalQuery {
+  id       String        @id @default(cuid())
+  userId   String
+  user     User          @relation(fields: [userId], references: [id])
+
+  question   String        @db.Text
+  answer     String        @db.Text
+  sources    Json          // Legal sources cited
+
+  category   LegalCategory
+  isResolved Boolean       @default(true)
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([category])
+}
+
+enum LegalCategory {
+  BUYING_PROCESS
+  SELLING_PROCESS
+  TAXATION
+  FOREIGN_INVESTMENT
+  INHERITANCE
+  RENTAL_LAW
+  CONTRACTS
+  OTHER
+}
