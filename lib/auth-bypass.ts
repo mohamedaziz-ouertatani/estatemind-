@@ -4,9 +4,11 @@
  * This module provides a smart bypass for authentication during development.
  * It automatically creates a mock investor user with full access to all features.
  * 
- * IMPORTANT: This bypass only works when:
+ * IMPORTANT: This bypass only works when BOTH conditions are met:
  * - NODE_ENV is set to 'development'
  * - NEXT_PUBLIC_BYPASS_AUTH is set to 'true'
+ * 
+ * SECURITY: Never enable in production. The bypass is explicitly restricted to development.
  */
 
 import { UserType, SubscriptionTier } from '@prisma/client'

@@ -2,15 +2,18 @@ import { User, SubscriptionTier } from '@prisma/client'
 import { prisma } from '@/lib/db'
 import { startOfMonth, endOfMonth } from 'date-fns'
 
+// Define unlimited credits constant for premium tiers
+const UNLIMITED_CREDITS = Number.MAX_SAFE_INTEGER
+
 /**
  * Credit limits by subscription tier
  */
 const CREDIT_LIMITS = {
   [SubscriptionTier.FREE]: 3,
-  [SubscriptionTier.BASIC_19]: 999999, // Unlimited
-  [SubscriptionTier.INVESTOR_149]: 999999, // Unlimited
-  [SubscriptionTier.INVESTOR_PRO_299]: 999999, // Unlimited
-  [SubscriptionTier.AGENCY_499]: 999999, // Unlimited
+  [SubscriptionTier.BASIC_19]: UNLIMITED_CREDITS,
+  [SubscriptionTier.INVESTOR_149]: UNLIMITED_CREDITS,
+  [SubscriptionTier.INVESTOR_PRO_299]: UNLIMITED_CREDITS,
+  [SubscriptionTier.AGENCY_499]: UNLIMITED_CREDITS,
 }
 
 /**
@@ -37,7 +40,7 @@ export async function getValuationCredits(userId: string) {
   })
 
   const limit = CREDIT_LIMITS[user.subscriptionTier]
-  const isUnlimited = limit === 999999
+  const isUnlimited = limit === UNLIMITED_CREDITS
   const remaining = isUnlimited ? 'Unlimited' : Math.max(0, limit - usage)
 
   return {

@@ -62,9 +62,17 @@ export function SaveButton({
     }
 
     setIsLoading(true)
+    
+    // Store previous state for rollback
+    const previousSaved = isSaved
+    const previousSavedPropertyId = savedPropertyId
 
     try {
       if (isSaved && savedPropertyId) {
+        // Optimistically update UI
+        setIsSaved(false)
+        setSavedPropertyId(null)
+        
         // Unsave property
         const response = await fetch(`/api/users/saved-properties/${savedPropertyId}`, {
           method: 'DELETE'
@@ -74,8 +82,6 @@ export function SaveButton({
           throw new Error('Failed to unsave property')
         }
 
-        setIsSaved(false)
-        setSavedPropertyId(null)
         toast.success('Propriété retirée', {
           description: 'La propriété a été retirée de vos favoris'
         })
@@ -106,8 +112,9 @@ export function SaveButton({
       toast.error('Erreur', {
         description: error instanceof Error ? error.message : 'Une erreur est survenue'
       })
-      // Revert optimistic update
-      setIsSaved(!isSaved)
+      // Revert to previous state
+      setIsSaved(previousSaved)
+      setSavedPropertyId(previousSavedPropertyId)
     } finally {
       setIsLoading(false)
     }
