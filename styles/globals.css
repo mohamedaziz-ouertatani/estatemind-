@@ -5,47 +5,75 @@
 @layer base {
   :root {
     --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --foreground: 20 14.3% 4.1%;
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 20 14.3% 4.1%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 221.2 83.2% 53.3%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --popover-foreground: 20 14.3% 4.1%;
+
+    /* Orange primary colors */
+    --primary: 24 95% 53%; /* Vibrant orange #FF6B00 */
+    --primary-foreground: 0 0% 100%;
+
+    /* Warm secondary colors */
+    --secondary: 33 100% 96%; /* Light cream */
+    --secondary-foreground: 24 70% 20%;
+
+    --muted: 33 50% 95%;
+    --muted-foreground: 25 5% 45%;
+
+    /* Orange accent */
+    --accent: 27 96% 61%; /* Lighter orange #FF9933 */
+    --accent-foreground: 0 0% 100%;
+
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 221.2 83.2% 53.3%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 20 13% 91%;
+    --input: 20 13% 91%;
+    --ring: 24 95% 53%; /* Orange ring */
     --radius: 0.5rem;
+
+    /* Custom orange shades for Tunisia theme */
+    --orange-50: 33 100% 96%;
+    --orange-100: 32 98% 91%;
+    --orange-200: 31 97% 82%;
+    --orange-300: 27 96% 70%;
+    --orange-400: 25 95% 60%;
+    --orange-500: 24 95% 53%; /* Main orange */
+    --orange-600: 20 91% 48%;
+    --orange-700: 17 88% 40%;
+    --orange-800: 15 79% 34%;
+    --orange-900: 15 75% 28%;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 217.2 91.2% 59.8%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 224.3 76.3% 48%;
+    --background: 20 14.3% 4.1%;
+    --foreground: 0 0% 95%;
+    --card: 24 9.8% 10%;
+    --card-foreground: 0 0% 95%;
+    --popover: 0 0% 9%;
+    --popover-foreground: 0 0% 95%;
+
+    /* Orange primary for dark mode */
+    --primary: 27 96% 61%; /* Lighter orange for dark bg */
+    --primary-foreground: 20 14.3% 4.1%;
+
+    --secondary: 12 6.5% 15.1%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 12 6.5% 15.1%;
+    --muted-foreground: 24 5.4% 63.9%;
+
+    --accent: 24 95% 53%; /* Vibrant orange for accents */
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 98%;
+
+    --border: 24 6% 20%;
+    --input: 24 6% 20%;
+    --ring: 27 96% 61%;
   }
 }
 
@@ -56,13 +84,141 @@
   body {
     @apply bg-background text-foreground;
   }
+
+  /* Orange gradient background option */
+  .bg-gradient-orange {
+    background: linear-gradient(135deg, #ff6b00 0%, #ff9933 100%);
+  }
+
+  /* Tunisia flag colors (red + white, with orange as accent) */
+  .tunisia-accent {
+    @apply border-l-4 border-primary;
+  }
 }
 
-/* Mapbox overrides */
+/* Mapbox overrides with orange theme */
 .mapboxgl-popup-content {
-  @apply rounded-lg shadow-lg p-0;
+  @apply rounded-lg shadow-lg p-0 border-2 border-orange-200;
 }
 
 .mapboxgl-popup-close-button {
-  @apply text-2xl;
+  @apply text-2xl text-primary hover:text-orange-700 transition-colors;
+}
+
+.mapboxgl-ctrl-group button {
+  @apply hover:bg-orange-50 transition-colors;
+}
+
+.mapboxgl-ctrl-group button.mapboxgl-ctrl-zoom-in,
+.mapboxgl-ctrl-group button.mapboxgl-ctrl-zoom-out {
+  @apply hover:text-primary;
+}
+
+/* Custom scrollbar (orange theme) */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-orange-50;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-orange-400 rounded-full hover:bg-orange-500;
+}
+
+/* Orange button variants */
+.btn-orange {
+  @apply bg-primary text-primary-foreground hover:bg-orange-600 transition-colors px-4 py-2 rounded-md font-medium;
+}
+
+.btn-orange-outline {
+  @apply border-2 border-primary text-primary hover:bg-orange-50 transition-colors px-4 py-2 rounded-md font-medium;
+}
+
+/* Badge colors for property status */
+.badge-fair {
+  @apply bg-orange-100 text-orange-800 border-orange-300;
+}
+
+.badge-deal {
+  @apply bg-green-100 text-green-800 border-green-300;
+}
+
+.badge-overpriced {
+  @apply bg-red-100 text-red-800 border-red-300;
+}
+
+/* Tunisia map styles */
+.tunisia-region {
+  @apply hover:fill-orange-200 transition-colors cursor-pointer;
+}
+
+.tunisia-region.selected {
+  @apply fill-orange-400 stroke-orange-600;
+}
+
+/* Property card hover effect (orange) */
+.property-card {
+  @apply transition-all duration-300 hover:shadow-xl hover:border-orange-300;
+}
+
+.property-card:hover .property-price {
+  @apply text-primary;
+}
+
+/* Investment score colors */
+.score-excellent {
+  @apply bg-orange-500 text-white;
+}
+
+.score-good {
+  @apply bg-orange-300 text-orange-900;
+}
+
+.score-average {
+  @apply bg-orange-100 text-orange-700;
+}
+
+/* Header with Tunisia orange theme */
+.header-gradient {
+  background: linear-gradient(
+    90deg,
+    #ff6b00 0%,
+    /* Orange */ #ff8533 50%,
+    /* Mid orange */ #ff9933 100% /* Light orange */
+  );
+}
+
+/* Loading spinner (orange) */
+.spinner-orange {
+  border: 3px solid theme("colors.orange.200");
+  border-top-color: theme("colors.orange.500");
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Focus states (orange ring) */
+button:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  @apply ring-2 ring-primary ring-offset-2 outline-none;
+}
+
+/* Tunisia-inspired decorative elements */
+.tunisia-pattern {
+  background-image: repeating-linear-gradient(
+    45deg,
+    transparent,
+    transparent 35px,
+    rgba(255, 107, 0, 0.05) 35px,
+    rgba(255, 107, 0, 0.05) 70px
+  );
 }
