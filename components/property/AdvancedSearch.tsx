@@ -88,9 +88,14 @@ export function AdvancedSearch({ onSearch, resultsCount, loading }: AdvancedSear
     if (filters.governorate) {
       const dels = getDelegations(filters.governorate)
       setDelegations(dels)
-      setFilters(prev => ({ ...prev, delegation: "", neighborhood: "" }))
+      setFilters(prev => ({ 
+        ...prev, 
+        delegation: "",
+        neighborhood: ""
+      }))
     } else {
       setDelegations([])
+      setNeighborhoods([])
     }
   }, [filters.governorate])
 
@@ -98,11 +103,13 @@ export function AdvancedSearch({ onSearch, resultsCount, loading }: AdvancedSear
     if (filters.governorate && filters.delegation) {
       const neighs = getNeighborhoods(filters.governorate, filters.delegation)
       setNeighborhoods(neighs)
-      setFilters(prev => ({ ...prev, neighborhood: "" }))
+      if (filters.neighborhood && !neighs.includes(filters.neighborhood)) {
+        setFilters(prev => ({ ...prev, neighborhood: "" }))
+      }
     } else {
       setNeighborhoods([])
     }
-  }, [filters.governorate, filters.delegation])
+  }, [filters.governorate, filters.delegation, filters.neighborhood])
 
   const handlePropertyTypeToggle = (type: string) => {
     setFilters(prev => ({
@@ -198,6 +205,7 @@ export function AdvancedSearch({ onSearch, resultsCount, loading }: AdvancedSear
                       className="w-full mt-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                       value={filters.governorate}
                       onChange={(e) => setFilters(prev => ({ ...prev, governorate: e.target.value }))}
+                      aria-label="Sélectionner un gouvernorat"
                     >
                       <option value="">Tous les gouvernorats</option>
                       {GOVERNORATES.map((gov) => (
@@ -213,6 +221,7 @@ export function AdvancedSearch({ onSearch, resultsCount, loading }: AdvancedSear
                       value={filters.delegation}
                       onChange={(e) => setFilters(prev => ({ ...prev, delegation: e.target.value }))}
                       disabled={!filters.governorate}
+                      aria-label="Sélectionner une délégation"
                     >
                       <option value="">Toutes les délégations</option>
                       {delegations.map((del) => (
@@ -228,6 +237,7 @@ export function AdvancedSearch({ onSearch, resultsCount, loading }: AdvancedSear
                       value={filters.neighborhood}
                       onChange={(e) => setFilters(prev => ({ ...prev, neighborhood: e.target.value }))}
                       disabled={!filters.delegation}
+                      aria-label="Sélectionner un quartier"
                     >
                       <option value="">Tous les quartiers</option>
                       {neighborhoods.map((neigh) => (
@@ -329,6 +339,7 @@ export function AdvancedSearch({ onSearch, resultsCount, loading }: AdvancedSear
                     className="w-full mt-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={filters.bedrooms}
                     onChange={(e) => setFilters(prev => ({ ...prev, bedrooms: e.target.value }))}
+                    aria-label="Nombre minimum de chambres"
                   >
                     <option value="0">Peu importe</option>
                     <option value="1">1+</option>
@@ -345,6 +356,7 @@ export function AdvancedSearch({ onSearch, resultsCount, loading }: AdvancedSear
                     className="w-full mt-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                     value={filters.bathrooms}
                     onChange={(e) => setFilters(prev => ({ ...prev, bathrooms: e.target.value }))}
+                    aria-label="Nombre minimum de salles de bain"
                   >
                     <option value="0">Peu importe</option>
                     <option value="1">1+</option>
@@ -390,6 +402,7 @@ export function AdvancedSearch({ onSearch, resultsCount, loading }: AdvancedSear
                   className="w-full mt-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
                   value={`${filters.sortBy}-${filters.order}`}
                   onChange={(e) => handleSortChange(e.target.value)}
+                  aria-label="Sélectionner l'ordre de tri"
                 >
                   {SORT_OPTIONS.map((option) => (
                     <option key={option.value} value={option.value}>
