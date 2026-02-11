@@ -50,3 +50,41 @@ export type PropertyFormData = {
   images: string[]
   virtualTour?: string
 }
+
+export interface PropertySearchResult {
+  id: string
+  title: string
+  price: number
+  size: number
+  governorate: string
+  delegation: string
+  propertyType: string
+  transactionType: string
+  bedrooms?: number | null
+  bathrooms?: number | null
+  images?: string[]
+  hasParking?: boolean
+  hasPool?: boolean
+  hasGarden?: boolean
+  hasSeaView?: boolean
+  hasElevator?: boolean
+  aiValuation?: number | null
+  isPriceFair?: boolean | null
+  views?: number
+  listingDate?: Date | string
+}
+
+export interface PaginationInfo {
+  page: number
+  limit: number
+  total: number
+  totalPages: number
+  hasNext: boolean
+  hasPrev: boolean
+}
+
+export interface SearchResponse {
+  properties: PropertySearchResult[]
+  pagination: PaginationInfo
+}
+
