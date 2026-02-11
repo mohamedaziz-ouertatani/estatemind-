@@ -4,6 +4,8 @@ import { getCurrentUserWithBypass } from '@/lib/auth-bypass'
 import { hasValuationCredits } from '@/lib/credits'
 import { ValuationResult } from '@/types/valuation'
 
+const VALUATION_CACHE_DAYS = 30
+
 export async function POST(request: NextRequest) {
   try {
     const user = await getCurrentUserWithBypass()
@@ -56,12 +58,12 @@ export async function POST(request: NextRequest) {
       }
     })
 
-    // If valuation exists and is less than 30 days old, return it
+    // If valuation exists and is less than VALUATION_CACHE_DAYS old, return it
     if (existingValuation) {
-      const thirtyDaysAgo = new Date()
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30)
+      const cacheExpiry = new Date()
+      cacheExpiry.setDate(cacheExpiry.getDate() - VALUATION_CACHE_DAYS)
       
-      if (existingValuation.createdAt > thirtyDaysAgo) {
+      if (existingValuation.createdAt > cacheExpiry) {
         const comparables = existingValuation.comparables as any[]
         
         return NextResponse.json({

@@ -66,6 +66,7 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
 
       if (!response.ok) {
         const error = await response.json()
+        // TODO: Use toast notification instead of alert
         alert(error.message || 'Erreur lors de l\'évaluation')
         return
       }
@@ -74,6 +75,7 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
       setValuation(data.valuation)
     } catch (error) {
       console.error('Valuation error:', error)
+      // TODO: Use toast notification instead of alert
       alert('Erreur lors de l\'évaluation')
     } finally {
       setIsLoadingValuation(false)
@@ -81,8 +83,8 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
   }
 
   const handleSave = async () => {
+    // TODO: Implement actual save/unsave API call
     setIsSaved(!isSaved)
-    // TODO: Implement save functionality
   }
 
   const handleShare = async () => {
