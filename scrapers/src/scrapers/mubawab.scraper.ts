@@ -189,8 +189,9 @@ export class MubawabScraper {
 
       // Save results to file
       const endTime = new Date().toISOString();
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + 
-                       new Date().toISOString().replace(/[:.]/g, '').split('T')[1].slice(0, 6);
+      const now = new Date();
+      const timestamp = now.toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + 
+                       now.toISOString().replace(/[:.]/g, '').split('T')[1].slice(0, 6);
       const dataDir = path.join(__dirname, '../../data/bronze');
       
       // Ensure directory exists
