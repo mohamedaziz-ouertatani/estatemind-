@@ -31,8 +31,11 @@
     "@radix-ui/react-tabs": "^1.1.0",
     "@types/glob": "^8.1.0",
     "bcryptjs": "^2.4.3",
+    "bull": "^4.16.5",
+    "chokidar": "^3.6.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "concurrently": "^8.2.2",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "glob": "^13.0.3",
@@ -48,10 +51,7 @@
     "tailwind-merge": "^2.5.0",
     "tailwindcss-animate": "^1.0.7",
     "zod": "^3.23.0",
-    "zustand": "^4.5.0",
-    "bull": "^4.12.0",
-    "chokidar": "^3.6.0",
-    "concurrently": "^8.2.2"
+    "zustand": "^4.5.0"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

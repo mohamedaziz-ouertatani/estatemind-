@@ -66,6 +66,19 @@ python main.py
 - Feature filters (parking, pool, sea view, etc.)
 - Multiple sorting options
 
+### ✅ Automated Scraping
+- **Multi-Source Support** - Scrape from 3 major Tunisian real estate websites:
+  - Tayara.tn (largest classifieds)
+  - Mubawab.tn (real estate focused)
+  - TunisieAnnonce.com (general classifieds)
+- **Scheduled Automation** - 4 different cron schedules for continuous data collection
+- **Queue Management** - Bull queue with Redis for reliable job processing
+- **API Endpoints** - Manual triggering via REST API
+- **Auto-Ingestion** - Automatic database ingestion of scraped data
+- **Admin Dashboard** - Web interface at `/admin/scraping` for managing jobs
+
+See [scrapers/README.md](scrapers/README.md) for detailed scraping documentation.
+
 ### ✅ AI Valuation Engine
 - Rule-based valuation model
 - 70+ Tunisia neighborhoods with specific pricing
@@ -132,6 +145,15 @@ DATABASE_URL="postgresql://user:pass@localhost:5432/estatemind"
 NEXTAUTH_SECRET="your-secret-32-chars"
 ```
 
+**Scraping System:**
+```env
+REDIS_HOST="localhost"
+REDIS_PORT="6379"
+SCRAPER_API_KEY="your-secret-key"
+NEXT_PUBLIC_SCRAPER_API_KEY="your-secret-key"
+DEFAULT_OWNER_ID="user-id-for-scraped-properties"
+```
+
 **Development:**
 ```env
 NODE_ENV="development"
@@ -182,6 +204,13 @@ See `.env.example` for complete configuration.
 ├── prisma/             # Database schema
 │   ├── schema.prisma
 │   └── seed.ts        # Comprehensive seed data
+├── scrapers/           # Multi-source scraping system
+│   ├── src/           # Scraper source code
+│   ├── data/          # Scraped data (bronze layer)
+│   └── README.md      # Scraping documentation
+├── scripts/            # Utility scripts
+│   ├── auto-ingest.ts # Auto-ingestion service
+│   └── ingest-scraped-data.ts # Manual ingestion
 ├── ai-service/         # Python AI service
 │   ├── main.py
 │   └── valuation_model.py
