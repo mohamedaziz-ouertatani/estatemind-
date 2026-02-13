@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:36:28 GMT
+Location: /listing/c/immobilier/terrains-et-fermes/
+X-Envoy-Upstream-Service-Time: 9
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cache-Control: max-age=14400
+Cf-Cache-Status: EXPIRED
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=NqE3V4ainR5g66d6trvBLekUShUY5P6%2B15xuBJECSYu9ghqErYrW5zrBrkRdQrBmkttLwGGkqdFyQkKObjwNt2Ld1849GsNrTAVdIA%3D%3D"}]}
+Cf-Ray: 9cd5beadbe1cbd8f-MXP

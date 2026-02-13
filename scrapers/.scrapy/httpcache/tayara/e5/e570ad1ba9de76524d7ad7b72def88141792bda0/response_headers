@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:37:57 GMT
+Location: /ads/c/immobilier/maisons-et-villas/
+X-Envoy-Upstream-Service-Time: 40
+Set-Cookie: caravel-cookie="b50b74f106db0147"; HttpOnly
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cf-Cache-Status: BYPASS
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=hT5v981v3h4Vm%2Bsjl%2FHRdb6cIZatEV%2FVqxCCljqEPzgRS1m1Zx%2FGIM%2FajOKysLBXVVBIfLDgLHQPR0Jz1A5Mu4CgsnJn5FxWutgodQ%3D%3D"}]}
+Cf-Ray: 9cd5c0dc9b8cbd8f-MXP

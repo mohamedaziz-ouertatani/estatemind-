@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:37:26 GMT
+Location: /ads/c/immobilier/bureaux-et-plateaux/
+X-Envoy-Upstream-Service-Time: 37
+Set-Cookie: caravel-cookie="679026ed67759d08"; HttpOnly
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cf-Cache-Status: BYPASS
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=sKtzCxxg6jnL46oIekd544Fsewcq92QMreND9MlS2EQZ6hBxGSTvz94eqocypaA0Wj8vXuPPVCv3jiN1UY%2FnpTYTS5z2mP9fHrs%2B%2Bg%3D%3D"}]}
+Cf-Ray: 9cd5c0152d2bbd8f-MXP

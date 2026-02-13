@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:36:05 GMT
+Location: /ads/c/immobilier/magasins,-commerces-et-locaux-industriels/
+X-Envoy-Upstream-Service-Time: 36
+Set-Cookie: caravel-cookie="a524b0a691e4658c"; HttpOnly
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cf-Cache-Status: BYPASS
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=j%2BBXQSPZT5aCQLLAU%2FjzfWRIIK3iVAqtNjsYRxnJKMfxDiIssJ0hN18S%2Bwubj44Xd0ROhNbs6FPiS3mJbHyb22MWS0Fx9AauXu%2F7JA%3D%3D"}]}
+Cf-Ray: 9cd5be1b1c93bd8f-MXP

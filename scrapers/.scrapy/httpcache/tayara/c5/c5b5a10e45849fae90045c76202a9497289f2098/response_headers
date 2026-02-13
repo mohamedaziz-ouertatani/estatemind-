@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:38:04 GMT
+Location: /listing/c/immobilier/maisons-et-villas/
+X-Envoy-Upstream-Service-Time: 10
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cache-Control: max-age=14400
+Cf-Cache-Status: EXPIRED
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=%2FXBGXcMdI3J06WjIibhWlKFJIxLM3iZ6N2FWInWzkHBjfERLPRIXbPUndgmO3laC4viNnyFN4Lqvun%2BzCZvEXW4PqvyklRpixqtiog%3D%3D"}]}
+Cf-Ray: 9cd5c106dbb2bd8f-MXP

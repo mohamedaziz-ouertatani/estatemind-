@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:39:54 GMT
+Location: /ads/c/immobilier/appartements/
+X-Envoy-Upstream-Service-Time: 55
+Set-Cookie: caravel-cookie="c101d1415530cfbc"; HttpOnly
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cf-Cache-Status: BYPASS
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=14%2FJUMGvBQ%2BUk80trdwWYy%2B7ReA9jhe8KV9ClTjMy20Nzc62%2BVlSd5oQvl8t2TCWJpvULJlKaPdQL2jj3HflKBMZUaWppFQxa5cP1w%3D%3D"}]}
+Cf-Ray: 9cd5c3b5ae47bd8f-MXP

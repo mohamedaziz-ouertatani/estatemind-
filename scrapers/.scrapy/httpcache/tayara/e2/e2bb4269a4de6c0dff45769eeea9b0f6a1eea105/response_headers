@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:35:44 GMT
+Location: /listing/c/immobilier/magasins_-commerces-et-locaux-industriels/
+X-Envoy-Upstream-Service-Time: 8
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cache-Control: max-age=14400
+Cf-Cache-Status: EXPIRED
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=Rs0T%2BqNXxnP802b60xUhuMFus6837aWTsqNiDvCVAgM730ZuM%2FLFrGb%2FWdiuYGA5rEgB2V%2FcUXMcA8tpLZaeuZzrHz7UbbuU0FU93g%3D%3D"}]}
+Cf-Ray: 9cd5bd986c21bd8f-MXP

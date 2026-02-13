@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:37:35 GMT
+Location: /ads/c/immobilier/terrains-et-fermes/
+X-Envoy-Upstream-Service-Time: 27
+Set-Cookie: caravel-cookie="0315038e1b5c5f2e"; HttpOnly
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cf-Cache-Status: BYPASS
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=uTGk2xhwnpqZNlNQxff6xlliP%2FjuOoWSyZPzYYHcwHj1q6XVLHhnqEzmj4dAyHQzSRgjhPgX5J3bdPmvx9ZeVCip1Z91oQAlY3Uyow%3D%3D"}]}
+Cf-Ray: 9cd5c0509e6bbd8f-MXP

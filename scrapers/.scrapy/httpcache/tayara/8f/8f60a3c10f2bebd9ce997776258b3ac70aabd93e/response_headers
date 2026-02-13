@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:39:27 GMT
+Location: /listing/c/immobilier/appartements/
+X-Envoy-Upstream-Service-Time: 13
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cache-Control: max-age=14400
+Cf-Cache-Status: EXPIRED
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=P%2FAH6cznMUWw4UdlB3P5Cva0McXQarsgxoVtffUhlNV29jwE4yetS4Eng56c70d4KHZjL8CuIepHeLhbHNaTtDSIbEukmPK2u8CEkQ%3D%3D"}]}
+Cf-Ray: 9cd5c30a8fc7bd8f-MXP
