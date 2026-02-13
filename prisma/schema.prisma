@@ -88,6 +88,20 @@ model Property {
   status      PropertyStatus @default(ACTIVE)
   views       Int            @default(0)
 
+  // Scraped data fields
+  sourceUrl              String?
+  sourceWebsite          String?
+  externalId             String?
+  contactPhone           String?
+  contactName            String?
+  scrapeTimestamp        DateTime?
+  priceCurrency          String?   @default("TND")
+  sizeUnit               String?   @default("m2")
+  pricePerM2             Float?
+  dataCompletenessScore  Float?
+  contentHash            String?
+  isFurnished            Boolean   @default(false)
+
   // AI Analysis
   aiValuation         Int?
   valuationConfidence Float?

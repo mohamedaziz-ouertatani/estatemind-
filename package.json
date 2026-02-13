@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "scraper:ingest": "tsx scripts/ingest_tayara_data.ts",
+    "scraper:tayara": "cd scrapers && scrapy crawl tayara -a max_pages=5"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
@@ -54,6 +56,7 @@
     "prisma": "^5.22.0",
     "tailwindcss": "^3.4.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
     "typescript": "^5.5.0"
   }
 }
