@@ -25,12 +25,12 @@ model User {
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
-  properties       Property[]
-  valuations       Valuation[]
-  savedProperties  SavedProperty[]
-  searchAlerts     SearchAlert[]
-  legalQueries     LegalQuery[]
-  portfolioItems   Portfolio[]
+  properties      Property[]
+  valuations      Valuation[]
+  savedProperties SavedProperty[]
+  searchAlerts    SearchAlert[]
+  legalQueries    LegalQuery[]
+  portfolioItems  Portfolio[]
 }
 
 enum UserType {
@@ -53,9 +53,9 @@ enum SubscriptionTier {
 // ============================================================
 
 model Property {
-  id              String            @id @default(cuid())
+  id              String          @id @default(cuid())
   title           String
-  description     String            @db.Text
+  description     String          @db.Text
   propertyType    PropertyType
   transactionType TransactionType
 
@@ -68,16 +68,16 @@ model Property {
   longitude    Float
 
   // Details
-  price      Int
-  size       Float // m²
-  bedrooms   Int?
-  bathrooms  Int?
-  floor      Int?
-  hasParking Boolean @default(false)
+  price       Int
+  size        Float // m²
+  bedrooms    Int?
+  bathrooms   Int?
+  floor       Int?
+  hasParking  Boolean @default(false)
   hasElevator Boolean @default(false)
-  hasGarden  Boolean @default(false)
-  hasPool    Boolean @default(false)
-  hasSeaView Boolean @default(false)
+  hasGarden   Boolean @default(false)
+  hasPool     Boolean @default(false)
+  hasSeaView  Boolean @default(false)
 
   // Media
   images      String[]
@@ -138,11 +138,11 @@ enum PropertyStatus {
 // ============================================================
 
 model Valuation {
-  id              String   @id @default(cuid())
-  propertyId      String
-  property        Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
-  userId          String
-  user            User     @relation(fields: [userId], references: [id])
+  id         String   @id @default(cuid())
+  propertyId String
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
 
   estimatedValue  Int
   confidenceScore Float
@@ -150,10 +150,10 @@ model Valuation {
   maxValue        Int
 
   // Analysis breakdown
-  locationScore   Int
-  sizeScore       Int
-  conditionScore  Int
-  amenitiesScore  Int
+  locationScore  Int
+  sizeScore      Int
+  conditionScore Int
+  amenitiesScore Int
 
   comparables Json // Array of comparable properties
   aiInsights  String @db.Text
@@ -175,13 +175,13 @@ model Neighborhood {
   delegation  String
 
   // Scores (0-100)
-  overallScore    Int
-  housingScore    Int
-  schoolsScore    Int
-  transportScore  Int
-  amenitiesScore  Int
-  lifestyleScore  Int
-  safetyScore     Int
+  overallScore   Int
+  housingScore   Int
+  schoolsScore   Int
+  transportScore Int
+  amenitiesScore Int
+  lifestyleScore Int
+  safetyScore    Int
 
   // Market data
   avgPricePerM2  Int
@@ -226,15 +226,15 @@ model SavedProperty {
 // ============================================================
 
 model SearchAlert {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id])
-  name        String
-  criteria    Json // Search criteria object
-  isActive    Boolean  @default(true)
-  frequency   String   @default("DAILY") // DAILY, WEEKLY
+  id           String    @id @default(cuid())
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  name         String
+  criteria     Json // Search criteria object
+  isActive     Boolean   @default(true)
+  frequency    String    @default("DAILY") // DAILY, WEEKLY
   lastNotified DateTime?
-  createdAt   DateTime @default(now())
+  createdAt    DateTime  @default(now())
 
   @@index([userId])
 }
@@ -250,10 +250,10 @@ model Portfolio {
   propertyId String
   property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
 
-  purchasePrice       Int
-  purchaseDate        DateTime
-  currentValue        Int
-  lastValuationDate   DateTime
+  purchasePrice     Int
+  purchaseDate      DateTime
+  currentValue      Int
+  lastValuationDate DateTime
 
   // Rental info
   monthlyRent   Int?
@@ -285,15 +285,15 @@ enum PortfolioStatus {
 }
 
 model InvestmentOpportunity {
-  id          String   @id @default(cuid())
-  propertyId  String
+  id         String @id @default(cuid())
+  propertyId String
 
-  opportunityScore Int   // 0-100
+  opportunityScore Int // 0-100
   discountPercent  Float // % below market
   estimatedYield   Float
 
-  reasons          Json   // Array of reasons why it's good
-  risks            Json   // Array of risks
+  reasons          Json // Array of reasons why it's good
+  risks            Json // Array of risks
   aiRecommendation String @db.Text
 
   status        OpportunityStatus @default(ACTIVE)
@@ -317,13 +317,13 @@ enum OpportunityStatus {
 // ============================================================
 
 model LegalQuery {
-  id       String        @id @default(cuid())
-  userId   String
-  user     User          @relation(fields: [userId], references: [id])
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id])
 
-  question   String        @db.Text
-  answer     String        @db.Text
-  sources    Json          // Legal sources cited
+  question String @db.Text
+  answer   String @db.Text
+  sources  Json // Legal sources cited
 
   category   LegalCategory
   isResolved Boolean       @default(true)
