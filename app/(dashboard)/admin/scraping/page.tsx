@@ -195,7 +195,7 @@ export default function ScrapingAdminPage() {
                   <h3 className="font-medium text-lg">Tayara.tn</h3>
                 </div>
                 <p className="text-sm text-gray-600 mb-4">
-                  Tunisia's largest classifieds platform
+                  Tunisia&apos;s largest classifieds platform
                 </p>
                 <Button
                   onClick={() => triggerScrape(['tayara'], 'incremental', 5)}
