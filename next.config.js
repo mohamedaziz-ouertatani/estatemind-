@@ -31,7 +31,6 @@ const nextConfig = {
     },
   },
   // Production optimizations
-  swcMinify: true,
   compress: true,
   poweredByHeader: false,
 }
