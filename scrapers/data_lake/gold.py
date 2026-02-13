@@ -10,6 +10,11 @@ import logging
 
 logger = logging.getLogger(__name__)
 
+# Price category thresholds (in TND)
+PRICE_CATEGORY_BUDGET_MAX = 100000
+PRICE_CATEGORY_MID_MAX = 300000
+PRICE_CATEGORY_LUXURY_MAX = 600000
+
 
 class GoldLayer:
     """
@@ -85,11 +90,11 @@ class GoldLayer:
         if price:
             try:
                 price_float = float(price)
-                if price_float < 100000:
+                if price_float < PRICE_CATEGORY_BUDGET_MAX:
                     enriched["price_category"] = "BUDGET"
-                elif price_float < 300000:
+                elif price_float < PRICE_CATEGORY_MID_MAX:
                     enriched["price_category"] = "MID"
-                elif price_float < 600000:
+                elif price_float < PRICE_CATEGORY_LUXURY_MAX:
                     enriched["price_category"] = "LUXURY"
                 else:
                     enriched["price_category"] = "ULTRA_LUXURY"

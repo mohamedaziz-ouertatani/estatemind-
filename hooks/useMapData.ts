@@ -3,6 +3,9 @@
 import { useState, useEffect, useCallback } from "react";
 import { PropertyFilters } from "./useMapFilters";
 
+// Debounce delay constant
+const DEBOUNCE_DELAY_MS = 500;
+
 export interface MapBounds {
   minLng: number;
   minLat: number;
@@ -108,7 +111,7 @@ export function useMapData(
     // Debounce the fetch
     const timer = setTimeout(() => {
       fetchProperties();
-    }, 500);
+    }, DEBOUNCE_DELAY_MS);
 
     return () => clearTimeout(timer);
   }, [fetchProperties]);

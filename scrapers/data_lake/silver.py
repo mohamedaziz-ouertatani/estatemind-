@@ -107,7 +107,8 @@ class SilverLayer:
         return filepath
     
     def _calculate_hash(self, record: Dict[str, Any]) -> str:
-        """Calculate hash for deduplication"""
+        """Calculate SHA-256 hash for deduplication"""
+        import hashlib
         key_fields = [
             str(record.get("title", "")),
             str(record.get("price", "")),
@@ -116,7 +117,7 @@ class SilverLayer:
             str(record.get("neighborhood", "")),
         ]
         content = "|".join(key_fields).encode("utf-8")
-        return hashlib.md5(content).hexdigest()
+        return hashlib.sha256(content).hexdigest()
     
     def _clean_record(self, record: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """Clean and standardize a record"""

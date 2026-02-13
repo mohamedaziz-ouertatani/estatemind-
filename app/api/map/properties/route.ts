@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
 
+// Constants
+const MAX_PROPERTY_PRICE = 999999999;
+const MAX_PROPERTY_SIZE = 999999;
+
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -19,9 +23,9 @@ export async function GET(request: NextRequest) {
 
     const transactionType = searchParams.get("transactionType") || undefined;
     const minPrice = parseFloat(searchParams.get("minPrice") || "0");
-    const maxPrice = parseFloat(searchParams.get("maxPrice") || "999999999");
+    const maxPrice = parseFloat(searchParams.get("maxPrice") || String(MAX_PROPERTY_PRICE));
     const minSize = parseFloat(searchParams.get("minSize") || "0");
-    const maxSize = parseFloat(searchParams.get("maxSize") || "999999");
+    const maxSize = parseFloat(searchParams.get("maxSize") || String(MAX_PROPERTY_SIZE));
     const bedrooms = searchParams.get("bedrooms")
       ? parseInt(searchParams.get("bedrooms")!)
       : undefined;

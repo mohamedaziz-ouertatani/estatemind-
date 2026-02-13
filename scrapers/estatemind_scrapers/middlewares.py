@@ -104,8 +104,8 @@ class CustomRetryMiddleware(RetryMiddleware):
             reason = response_status_message(response.status)
             retry_count = request.meta.get("retry_count", 0)
             
-            # Exponential backoff
-            wait_time = 2 ** retry_count
+            # Exponential backoff with max cap
+            wait_time = min(2 ** retry_count, 30)  # Cap at 30 seconds
             logger.info(f"Retrying {request.url} (attempt {retry_count + 1}) after {wait_time}s")
             time.sleep(wait_time)
             

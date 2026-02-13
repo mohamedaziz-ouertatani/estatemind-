@@ -10,6 +10,7 @@ import subprocess
 import os
 import json
 import logging
+import tempfile
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -64,8 +65,9 @@ def run_scraper(job_id: str, spider_name: str, max_pages: Optional[int] = None):
         if max_pages:
             cmd.extend(["-a", f"max_pages={max_pages}"])
         
-        # Output file
-        output_file = f"/tmp/scraper_output_{job_id}.json"
+        # Output file using tempfile
+        output_fd, output_file = tempfile.mkstemp(suffix=".json", prefix=f"scraper_{job_id}_")
+        os.close(output_fd)  # Close file descriptor, scrapy will open for writing
         cmd.extend(["-o", output_file])
         
         # Get scrapers directory

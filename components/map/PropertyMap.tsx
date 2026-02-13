@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useCallback, useRef } from "react";
-import Map, { Marker, Popup, NavigationControl, ScaleControl } from "react-map-gl";
+import Map, { Marker, Popup, NavigationControl, ScaleControl, MapRef } from "react-map-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { PropertyFeature } from "@/hooks/useMapData";
 import PropertyMarker from "./PropertyMarker";
@@ -30,7 +30,7 @@ export default function PropertyMap({
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
   const [selectedProperty, setSelectedProperty] = useState<PropertyFeature | null>(null);
   const [viewState, setViewState] = useState(TUNISIA_CENTER);
-  const mapRef = useRef<any>(null);
+  const mapRef = useRef<MapRef>(null);
 
   const handleMove = useCallback((evt: any) => {
     setViewState(evt.viewState);
