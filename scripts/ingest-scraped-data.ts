@@ -1,5 +1,5 @@
-// scripts/ingest-scraped-data.ts
-import { PrismaClient, PropertyType, TransactionType } from "@prisma/client";
+import { PrismaClient } from "@prisma/client";
+import * as bcrypt from "bcryptjs"; // Fixed import
 import fs from "fs";
 import path from "path";
 import { glob } from "glob";
@@ -42,31 +42,33 @@ interface ScrapedProperty {
   longitude?: number;
 }
 
-// Get or create default user for scraped properties
+// Get or create a "Scraper" user
 async function getScraperUser() {
+  const email = "scraper@estatemind.internal";
+
   let user = await prisma.user.findUnique({
-    where: { email: "scraper@estatemind.tn" },
+    where: { email },
   });
 
   if (!user) {
-    const bcrypt = await import("bcryptjs");
+    const hashedPassword = await bcrypt.hash("scraper-internal-only", 10);
     user = await prisma.user.create({
       data: {
-        email: "scraper@estatemind.tn",
-        name: "Scraper Bot",
-        password: await bcrypt.hash("secure-random-password-here", 10),
+        email,
+        name: "Data Scraper",
+        password: hashedPassword,
         userType: "ADMIN",
         subscriptionTier: "FREE",
       },
     });
-    console.log("✅ Created scraper user");
+    console.log("✨ Created scraper user");
   }
 
   return user;
 }
 
-async function ingestJSONFile(filePath: string, scraperUserId: string) {
-  console.log(`\n📂 Processing: ${path.basename(filePath)}`);
+async function ingestJSONFile(filePath: string, scraperId: string) {
+  console.log(`\n📂 Processing: ${filePath}`);
 
   const fileContent = fs.readFileSync(filePath, "utf-8");
   const scrapedData: ScrapedProperty[] = JSON.parse(fileContent);
@@ -77,19 +79,22 @@ async function ingestJSONFile(filePath: string, scraperUserId: string) {
 
   for (const property of scrapedData) {
     try {
-      // Check if property already exists
-      const existing = await prisma.property.findUnique({
-        where: { sourceUrl: property.source_url },
+      // Check for existing property using externalId (listing_id) and sourceWebsite
+      const existing = await prisma.property.findFirst({
+        where: {
+          externalId: property.listing_id,
+          sourceWebsite: property.source_website,
+        },
       });
 
       if (existing) {
-        console.log(`⚠️  Duplicate: ${property.title}`);
+        console.log(`⚠️  Duplicate: ${property.title} (already in database)`);
         duplicateCount++;
         continue;
       }
 
-      // Map property types
-      const propertyTypeMap: Record<string, PropertyType> = {
+      // Map scraped types to Prisma enums with fallbacks
+      const propertyTypeMap: Record<string, string> = {
         APARTMENT: "APARTMENT",
         HOUSE: "HOUSE",
         VILLA: "VILLA",
@@ -98,77 +103,95 @@ async function ingestJSONFile(filePath: string, scraperUserId: string) {
         OFFICE: "OFFICE",
       };
 
-      const transactionTypeMap: Record<string, TransactionType> = {
+      const transactionTypeMap: Record<string, string> = {
         SALE: "SALE",
         RENT: "RENT",
         BOTH: "BOTH",
       };
 
-      // Create property with proper type mapping
+      // Determine property type and transaction type with defaults
+      const propertyType =
+        propertyTypeMap[property.property_type?.toUpperCase() || ""] ||
+        "APARTMENT";
+      const transactionType =
+        transactionTypeMap[property.transaction_type?.toUpperCase() || ""] ||
+        "SALE";
+
+      // Prepare coordinates - use provided or set Tunisia defaults
+      const latitude = property.latitude ?? 36.8065; // Tunis center
+      const longitude = property.longitude ?? 10.1815; // Tunis center
+
       await prisma.property.create({
         data: {
-          // Required fields
-          title: property.title || "Untitled Property",
+          // Basic info
+          title: property.title,
           description: property.description || "No description available",
-          propertyType:
-            propertyTypeMap[property.property_type || "APARTMENT"] ||
-            "APARTMENT",
-          transactionType:
-            transactionTypeMap[property.transaction_type || "SALE"] || "SALE",
+          propertyType,
+          transactionType,
 
-          // Location (required)
-          governorate: property.governorate || "Unknown",
+          // Location (required fields)
+          governorate: property.governorate || "Tunis",
           delegation: property.delegation || "Unknown",
-          neighborhood: property.neighborhood,
-          latitude: property.latitude,
-          longitude: property.longitude,
+          neighborhood: property.neighborhood || null,
+          address: null,
+          latitude,
+          longitude,
 
-          // Details (now nullable)
-          price: property.price,
-          size: property.size,
-          bedrooms: property.bedrooms,
+          // Pricing
+          price: property.price || 0,
+          size: property.size || 0,
+          bedrooms: property.bedrooms || null,
+          bathrooms: null,
+          floor: null,
 
-          // Boolean fields with defaults
-          hasParking: property.has_parking ?? false,
-          hasElevator: property.has_elevator ?? false,
-          hasPool: property.has_pool ?? false,
-          hasGarden: property.has_garden ?? false,
-          hasSeaView: property.has_sea_view ?? false,
-          isFurnished: property.is_furnished ?? false,
+          // Features
+          hasParking: property.has_parking || false,
+          hasElevator: property.has_elevator || false,
+          hasPool: property.has_pool || false,
+          hasGarden: property.has_garden || false,
+          hasSeaView: property.has_sea_view || false,
+          isFurnished: property.is_furnished || false,
 
           // Media
           images: property.images || [],
+          virtualTour: null,
 
-          // Scraped data
-          sourceUrl: property.source_url,
-          sourceWebsite: property.source_website,
-          externalId: property.listing_id,
-          contactPhone: property.contact_phone,
-          contactName: property.contact_name,
-          scrapeTimestamp: property.scrape_timestamp
-            ? new Date(property.scrape_timestamp)
-            : undefined,
-          priceCurrency: property.price_currency || "TND",
-          sizeUnit: property.size_unit || "m2",
-          pricePerM2: property.price_per_m2,
-          dataCompletenessScore: property.data_completeness_score,
-          contentHash: property.content_hash,
-
-          // Dates
+          // Metadata
           listingDate: property.listing_date
             ? new Date(property.listing_date)
             : new Date(),
+          status: "ACTIVE",
+          views: 0,
+
+          // Scraped data
+          sourceUrl: property.source_url || null,
+          sourceWebsite: property.source_website || null,
+          externalId: property.listing_id || null,
+          contactPhone: property.contact_phone || null,
+          contactName: property.contact_name || null,
+          scrapeTimestamp: property.scrape_timestamp
+            ? new Date(property.scrape_timestamp)
+            : new Date(),
+          priceCurrency: property.price_currency || "TND",
+          sizeUnit: property.size_unit || "m2",
+          pricePerM2: property.price_per_m2 || null,
+          dataCompletenessScore: property.data_completeness_score || null,
+          contentHash: property.content_hash || null,
+
+          // AI fields (null for now)
+          aiValuation: null,
+          valuationConfidence: null,
+          isPriceFair: null,
 
           // Owner
-          ownerId: scraperUserId,
+          ownerId: scraperId,
         },
       });
 
       console.log(`✅ Ingested: ${property.title}`);
       successCount++;
     } catch (error) {
-      console.error(`❌ Error ingesting ${property.title}:`);
-      console.error(error);
+      console.error(`❌ Error ingesting ${property.title}:`, error);
       errorCount++;
     }
   }
@@ -195,8 +218,11 @@ async function main() {
 
   console.log(`📁 Looking in: ${scrapedDataDir}`);
 
+  // Build pattern and normalize to POSIX for glob on Windows
   const rawPattern = path.join(scrapedDataDir, "tayara_20260213_*.json");
   const pattern = rawPattern.replace(/\\/g, "/");
+
+  console.log(`🔎 Using glob pattern: ${pattern}`);
 
   const files = await glob(pattern, { nodir: true });
 
@@ -209,9 +235,7 @@ async function main() {
 
     try {
       const allFiles = fs.readdirSync(scrapedDataDir);
-      console.log(
-        `\n📋 Files in directory: ${allFiles.length > 0 ? allFiles.join(", ") : "none"}`,
-      );
+      console.log(`\n📋 Files in directory: ${allFiles.join(", ")}`);
     } catch (err) {
       console.error("❌ Could not read directory:", err);
     }
