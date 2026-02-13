@@ -10,7 +10,11 @@
     "postinstall": "prisma generate",
     "scraper:ingest": "tsx scripts/ingest_tayara_data.ts",
     "scraper:tayara": "cd scrapers && scrapy crawl tayara -a max_pages=5",
-    "ingest": "tsx scripts/ingest-scraped-data.ts"
+    "ingest": "tsx scripts/ingest-scraped-data.ts",
+    "scrape": "cd scrapers && npm run scrape:all",
+    "scheduler": "cd scrapers && npm run scheduler",
+    "watch-ingest": "tsx scripts/auto-ingest.ts",
+    "scrape:watch": "concurrently \"npm run scheduler\" \"npm run watch-ingest\""
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
@@ -27,8 +31,11 @@
     "@radix-ui/react-tabs": "^1.1.0",
     "@types/glob": "^8.1.0",
     "bcryptjs": "^2.4.3",
+    "bull": "^4.16.5",
+    "chokidar": "^3.6.0",
     "class-variance-authority": "^0.7.0",
     "clsx": "^2.1.0",
+    "concurrently": "^8.2.2",
     "date-fns": "^3.6.0",
     "embla-carousel-react": "^8.6.0",
     "glob": "^13.0.3",
