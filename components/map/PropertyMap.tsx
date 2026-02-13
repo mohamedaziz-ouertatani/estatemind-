@@ -1,7 +1,13 @@
 "use client";
 
 import React, { useState, useCallback, useRef } from "react";
-import Map, { Marker, Popup, NavigationControl, ScaleControl, MapRef } from "react-map-gl";
+import Map, {
+  Marker,
+  Popup,
+  NavigationControl,
+  ScaleControl,
+  MapRef,
+} from "react-map-gl";
 import "mapbox-gl/dist/mapbox-gl.css";
 import { PropertyFeature } from "@/hooks/useMapData";
 import PropertyMarker from "./PropertyMarker";
@@ -28,7 +34,8 @@ export default function PropertyMap({
   onBoundsChange,
 }: PropertyMapProps) {
   const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-  const [selectedProperty, setSelectedProperty] = useState<PropertyFeature | null>(null);
+  const [selectedProperty, setSelectedProperty] =
+    useState<PropertyFeature | null>(null);
   const [viewState, setViewState] = useState(TUNISIA_CENTER);
   const mapRef = useRef<MapRef>(null);
 
@@ -40,7 +47,7 @@ export default function PropertyMap({
     if (mapRef.current && onBoundsChange) {
       const map = mapRef.current.getMap();
       const bounds = map.getBounds();
-      
+
       onBoundsChange({
         minLng: bounds.getWest(),
         minLat: bounds.getSouth(),
@@ -54,7 +61,8 @@ export default function PropertyMap({
     return (
       <div className="flex items-center justify-center h-full bg-gray-100">
         <p className="text-gray-600">
-          Mapbox token not configured. Please add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to your .env file.
+          Mapbox token not configured. Please add
+          NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to your .env file.
         </p>
       </div>
     );
@@ -109,7 +117,8 @@ export default function PropertyMap({
       {/* Property Count Badge */}
       <div className="absolute bottom-4 left-4 bg-white px-4 py-2 rounded-lg shadow-lg">
         <p className="text-sm font-medium text-gray-700">
-          {properties.length} {properties.length === 1 ? "propriété" : "propriétés"}
+          {properties.length}{" "}
+          {properties.length === 1 ? "propriété" : "propriétés"}
         </p>
       </div>
     </div>
