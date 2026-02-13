@@ -27,21 +27,10 @@ export default function PropertyMap({
   properties,
   onBoundsChange,
 }: PropertyMapProps) {
+  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
   const [selectedProperty, setSelectedProperty] = useState<PropertyFeature | null>(null);
   const [viewState, setViewState] = useState(TUNISIA_CENTER);
   const mapRef = useRef<any>(null);
-
-  const mapboxToken = process.env.NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN;
-
-  if (!mapboxToken) {
-    return (
-      <div className="flex items-center justify-center h-full bg-gray-100">
-        <p className="text-gray-600">
-          Mapbox token not configured. Please add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to your .env file.
-        </p>
-      </div>
-    );
-  }
 
   const handleMove = useCallback((evt: any) => {
     setViewState(evt.viewState);
@@ -60,6 +49,16 @@ export default function PropertyMap({
       });
     }
   }, [onBoundsChange]);
+
+  if (!mapboxToken) {
+    return (
+      <div className="flex items-center justify-center h-full bg-gray-100">
+        <p className="text-gray-600">
+          Mapbox token not configured. Please add NEXT_PUBLIC_MAPBOX_ACCESS_TOKEN to your .env file.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="relative w-full h-full">
