@@ -1,0 +1,11 @@
+Date: Fri, 13 Feb 2026 16:35:16 GMT
+Location: /listing/c/immobilier/bureaux-et-plateaux/
+X-Envoy-Upstream-Service-Time: 11
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cache-Control: max-age=14400
+Cf-Cache-Status: EXPIRED
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Vary: accept-encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=8Of%2BxJuMa9%2B%2BYovtIOngqmodgWSk4nrhvBPo13U1bP9X%2FHqAmYNSP5LSF2iKnD2zNiJF%2Fq29oYKvmGIgb7yt5Qa9%2BEAz760H7mYztA%3D%3D"}]}
+Cf-Ray: 9cd5bcea29bfbd8f-MXP
