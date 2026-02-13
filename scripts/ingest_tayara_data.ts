@@ -1,6 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -43,7 +44,7 @@ interface ScrapedProperty {
 function mapPropertyType(
   type: string,
 ): "APARTMENT" | "HOUSE" | "VILLA" | "LAND" | "COMMERCIAL" | "OFFICE" {
-  const typeMap: Record<string, any> = {
+  const typeMap: Record<string, "APARTMENT" | "HOUSE" | "VILLA" | "LAND" | "COMMERCIAL" | "OFFICE"> = {
     APARTMENT: "APARTMENT",
     HOUSE: "HOUSE",
     VILLA: "VILLA",
@@ -56,7 +57,7 @@ function mapPropertyType(
 
 // Map transaction types
 function mapTransactionType(type: string): "SALE" | "RENT" | "BOTH" {
-  const typeMap: Record<string, any> = {
+  const typeMap: Record<string, "SALE" | "RENT" | "BOTH"> = {
     SALE: "SALE",
     RENT: "RENT",
     BOTH: "BOTH",
@@ -114,11 +115,13 @@ async function ingestTayaraData(jsonFilePath: string) {
 
   if (!scraperUser) {
     console.log("👤 Creating scraper user...");
+    // Hash a secure random password for the scraper account
+    const hashedPassword = await bcrypt.hash('SCRAPER_ACCOUNT_' + Date.now(), 10);
     scraperUser = await prisma.user.create({
       data: {
         email: "scraper@estatemind.tn",
         name: "EstateMind Scraper",
-        password: "SCRAPER_ACCOUNT_NOT_FOR_LOGIN",
+        password: hashedPassword,
         userType: "NORMAL",
       },
     });
