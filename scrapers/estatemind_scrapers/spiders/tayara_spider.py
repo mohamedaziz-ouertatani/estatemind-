@@ -16,9 +16,8 @@ class TayaraSpider(scrapy.Spider):
     start_urls = ["https://www.tayara.tn/listing/c/immobilier/?page=1"]
     
     custom_settings = {
-        "DOWNLOAD_DELAY": 5,
-        "CONCURRENT_REQUESTS": 1,
-        "CONCURRENT_REQUESTS_PER_DOMAIN": 1,
+        "DOWNLOAD_DELAY": 3,
+        "CONCURRENT_REQUESTS": 4,
         "RANDOMIZE_DOWNLOAD_DELAY": True,
         "COOKIES_ENABLED": True,
         "ROBOTSTXT_OBEY": True,
