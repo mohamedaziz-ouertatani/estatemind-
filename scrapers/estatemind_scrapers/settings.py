@@ -26,7 +26,7 @@ RANDOMIZE_DOWNLOAD_DELAY = True
 
 # The download delay setting will honor only one of:
 CONCURRENT_REQUESTS_PER_DOMAIN = 4
-CONCURRENT_REQUESTS_PER_IP = 4
+# CONCURRENT_REQUESTS_PER_IP = 4
 
 # Disable cookies (enabled by default)
 COOKIES_ENABLED = True

@@ -1,0 +1,12 @@
+Date: Fri, 13 Feb 2026 15:51:10 GMT
+Content-Type: text/html; charset=utf-8
+Strict-Transport-Security: max-age=0; includeSubDomains; preload
+Cache-Control: private, max-age=14400, must-revalidate
+Vary: Accept-Encoding
+Report-To: {"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=fEmp%2BF31945fK2D525hCy7c0d72l1gw8q8WzAqeSc7NBmIbylqbwD2c9INDUACj5eu80x2R4GKS8hVZNSeAesQO0lRe5mi88PciADQ%3D%3D"}]}
+X-Envoy-Upstream-Service-Time: 67
+Server: cloudflare
+Nel: {"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}
+Cf-Cache-Status: EXPIRED
+Content-Encoding: br
+Cf-Ray: 9cd57c51fc9aed1e-MXP
