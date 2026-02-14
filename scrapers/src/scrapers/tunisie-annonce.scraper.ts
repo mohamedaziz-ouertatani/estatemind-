@@ -39,10 +39,244 @@ export class TunisieAnnonceScraper {
     return this.delay(delay);
   }
 
+  private normalizePropertyType(typeText: string): string {
+    const normalized = typeText.toLowerCase().trim();
+
+    if (normalized.includes("terrain")) {
+      return "LAND";
+    }
+    if (normalized.includes("villa")) {
+      return "HOUSE";
+    }
+    if (normalized.includes("maison")) {
+      return "HOUSE";
+    }
+    if (normalized.includes("appartement") || normalized.includes("app.")) {
+      return "APARTMENT";
+    }
+    if (
+      normalized.includes("commercial") ||
+      normalized.includes("bureau") ||
+      normalized.includes("local") ||
+      normalized.includes("surface")
+    ) {
+      return "COMMERCIAL";
+    }
+
+    return "APARTMENT";
+  }
+
+  /**
+   * FIXED: Parse price correctly
+   */
+  private parsePrice(text: string): number | undefined {
+    if (!text) return undefined;
+
+    // Remove all non-numeric except spaces and dots
+    const cleaned = text
+      .replace(/dinars?/gi, "")
+      .replace(/tnd/gi, "")
+      .replace(/dt/gi, "")
+      .replace(/,/g, "")
+      .trim();
+
+    // Extract first number sequence
+    const match = cleaned.match(/(\d+[\s\d]*)/);
+    if (!match) return undefined;
+
+    // Remove all spaces and convert
+    const numStr = match[1].replace(/\s+/g, "");
+    const num = parseInt(numStr, 10);
+
+    // Validate reasonable price range (1,000 to 100 million TND)
+    if (num >= 1000 && num <= 100000000) {
+      return num;
+    }
+
+    return undefined;
+  }
+
+  /**
+   * FIXED: Filter out UI/system images
+   */
+  private filterRealImages(images: string[]): string[] {
+    const filtered = images.filter((src) => {
+      const lower = src.toLowerCase();
+      return (
+        !lower.includes("space.gif") &&
+        !lower.includes("puce_") &&
+        !lower.includes("/config/") &&
+        !lower.includes("b_publier") &&
+        !lower.includes("logo") &&
+        !lower.includes("icon") &&
+        !lower.includes("/flags/") &&
+        !lower.includes("xiti.com") &&
+        !lower.includes("banners/") &&
+        !lower.includes("carte_tunisie")
+      );
+    });
+
+    return filtered.slice(0, 10); // Max 10 real images
+  }
+
+  private async scrapePropertyDetails(
+    page: Page,
+    url: string,
+  ): Promise<Partial<ScrapedProperty> | null> {
+    try {
+      await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+      await this.delay(1500);
+
+      const details = await page.evaluate(() => {
+        const result: any = {};
+
+        // Extract all table cells
+        const allCells = Array.from(document.querySelectorAll("td"));
+
+        for (let i = 0; i < allCells.length; i++) {
+          const cell = allCells[i];
+          const text = cell.textContent?.toLowerCase().trim() || "";
+          const nextCell = allCells[i + 1];
+
+          if (!nextCell) continue;
+          const nextText = nextCell.textContent?.trim() || "";
+
+          // Price
+          if ((text.includes("prix") || text === "prix :") && !result.price) {
+            result.priceRaw = nextText;
+          }
+
+          // Size
+          if (
+            (text.includes("superficie") || text.includes("surface")) &&
+            !result.size
+          ) {
+            const sizeMatch = nextText.match(/(\d+)/);
+            if (sizeMatch) {
+              result.size = parseInt(sizeMatch[1], 10);
+            }
+          }
+
+          // Bedrooms
+          if (
+            (text.includes("chambre") || text.includes("pièce")) &&
+            !result.bedrooms
+          ) {
+            const bedroomMatch = nextText.match(/(\d+)/);
+            if (bedroomMatch) {
+              result.bedrooms = parseInt(bedroomMatch[1], 10);
+            }
+          }
+
+          // Bathrooms
+          if (text.includes("salle de bain") && !result.bathrooms) {
+            const bathroomMatch = nextText.match(/(\d+)/);
+            if (bathroomMatch) {
+              result.bathrooms = parseInt(bathroomMatch[1], 10);
+            }
+          }
+
+          // Governorate
+          if (text.includes("gouvernorat") && !result.governorate) {
+            // Filter out dates
+            if (!nextText.match(/\d{2}\/\d{2}\/\d{4}/)) {
+              result.governorate = nextText;
+            }
+          }
+
+          // Delegation
+          if (
+            (text.includes("délégation") || text.includes("delegation")) &&
+            !result.delegation
+          ) {
+            if (!nextText.match(/\d{2}\/\d{2}\/\d{4}/)) {
+              result.delegation = nextText;
+            }
+          }
+
+          // Ville/quartier (neighborhood)
+          if (
+            (text.includes("ville") || text.includes("quartier")) &&
+            !result.neighborhood
+          ) {
+            // Filter out dates and prices
+            if (
+              !nextText.match(/\d{2}\/\d{2}\/\d{4}/) &&
+              !nextText.toLowerCase().includes("dinar")
+            ) {
+              result.neighborhood = nextText;
+            }
+          }
+        }
+
+        // Extract description - look for long text in colspan cells
+        const descriptionElements = Array.from(
+          document.querySelectorAll("td[colspan]"),
+        );
+        for (const elem of descriptionElements) {
+          const text = elem.textContent?.trim() || "";
+          if (
+            text.length > 100 &&
+            !text.includes("http") &&
+            !text.toLowerCase().includes("gouvernorat")
+          ) {
+            result.description = text.substring(0, 1000);
+            break;
+          }
+        }
+
+        // Extract ALL images first
+        const allImages: string[] = [];
+        const imgElements = document.querySelectorAll("img");
+
+        imgElements.forEach((img) => {
+          const src = img.getAttribute("src") || "";
+          if (src) {
+            const fullSrc = src.startsWith("http")
+              ? src
+              : "http://www.tunisie-annonce.com/" + src.replace(/^\/+/, "");
+            allImages.push(fullSrc);
+          }
+        });
+
+        result.allImages = allImages;
+
+        // Extract phone number
+        const bodyText = document.body.textContent || "";
+        const phoneRegex = /(\d{8})/g;
+        const phoneMatches = bodyText.match(phoneRegex);
+        if (phoneMatches && phoneMatches.length > 0) {
+          // Get the last phone number (usually the contact)
+          result.phone = phoneMatches[phoneMatches.length - 1];
+        }
+
+        return result;
+      });
+
+      // Parse price outside of page.evaluate
+      if (details.priceRaw) {
+        details.price = this.parsePrice(details.priceRaw);
+        delete details.priceRaw;
+      }
+
+      // Filter real images outside of page.evaluate
+      if (details.allImages) {
+        details.images = this.filterRealImages(details.allImages);
+        delete details.allImages;
+      }
+
+      return details;
+    } catch (error) {
+      console.error(`Error scraping details from ${url}:`, error);
+      return null;
+    }
+  }
+
   async scrape(): Promise<ScrapeResult> {
     const startTime = new Date().toISOString();
     const errors: string[] = [];
     const properties: ScrapedProperty[] = [];
+    const seenIds = new Set<string>();
 
     try {
       console.log("Starting Tunisie Annonce scraper...");
@@ -66,16 +300,12 @@ export class TunisieAnnonceScraper {
               : `http://www.tunisie-annonce.com/AnnoncesImmobilier.asp?page=${pageNum}`;
 
           await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-
-          // Wait for table to load
           await page.waitForSelector("tr.Tableau1", { timeout: 10000 });
           await this.delay(2000);
 
           const pageProperties = await page.evaluate(() => {
             const results: any[] = [];
-            const seen = new Set();
 
-            // Find all table rows with class Tableau1
             const rows = document.querySelectorAll("tr.Tableau1");
 
             rows.forEach((row) => {
@@ -83,7 +313,6 @@ export class TunisieAnnonceScraper {
                 const cells = row.querySelectorAll("td");
                 if (cells.length < 6) return;
 
-                // Find the link in the row
                 const link =
                   row.querySelector('a[href*="Details_Annonces_Immobilier"]') ||
                   row.querySelector('a[href*="DetailsAnnonceImmobilier"]');
@@ -93,14 +322,12 @@ export class TunisieAnnonceScraper {
                 const href = link.getAttribute("href") || "";
                 const listingId = href.match(/cod_ann=(\d+)/)?.[1] || "";
 
-                if (!listingId || seen.has(listingId)) return;
-                seen.add(listingId);
+                if (!listingId) return;
 
                 const sourceUrl = href.startsWith("http")
                   ? href
                   : "http://www.tunisie-annonce.com/" + href;
 
-                // Extract title from link text or URL
                 let title = link.textContent?.trim() || "";
                 if (!title || title.length < 3) {
                   const titleMatch = href.match(/titre=([^&]+)/);
@@ -111,12 +338,10 @@ export class TunisieAnnonceScraper {
                   }
                 }
 
-                // Extract location from first data cell
                 const locationCell = cells[1];
                 const locationLink = locationCell?.querySelector("a");
                 const governorate = locationLink?.textContent?.trim() || "";
 
-                // Extract transaction type from 3rd cell
                 const transactionCell = cells[3];
                 const transactionText =
                   transactionCell?.textContent?.trim().toLowerCase() || "";
@@ -128,52 +353,17 @@ export class TunisieAnnonceScraper {
                   transactionType = "RENT";
                 }
 
-                // Extract property type from 5th cell
                 const typeCell = cells[5];
                 const typeText = typeCell?.textContent?.trim() || "";
-
-                // Extract price from second-to-last cell
-                const priceCell = cells[cells.length - 3];
-                const priceText = priceCell?.textContent?.trim() || "";
-                let price: number | undefined;
-
-                const priceMatch = priceText.match(/(\d[\d\s]*)/);
-                if (priceMatch) {
-                  const numStr = priceMatch[1].replace(/\s/g, "");
-                  const num = parseInt(numStr);
-                  if (num > 0) {
-                    price = num;
-                  }
-                }
-
-                // Try to extract additional info from hover text
-                const onmouseover = link.getAttribute("onmouseover") || "";
-                let size: number | undefined;
-                let bedrooms: number | undefined;
-
-                const sizeMatch = onmouseover.match(/(\d+)\s*m[²2]/i);
-                if (sizeMatch) {
-                  size = parseInt(sizeMatch[1]);
-                }
-
-                const bedroomMatch = onmouseover.match(
-                  /(\d+)\s*(chambre|pièce)/i,
-                );
-                if (bedroomMatch) {
-                  bedrooms = parseInt(bedroomMatch[1]);
-                }
 
                 if (sourceUrl && title && title.length > 3) {
                   results.push({
                     source_url: sourceUrl,
                     listing_id: listingId,
                     title: title.substring(0, 200),
-                    price,
-                    size,
-                    bedrooms,
                     governorate: governorate || undefined,
                     transaction_type: transactionType,
-                    property_type: typeText,
+                    property_type_raw: typeText,
                   });
                 }
               } catch (err) {
@@ -184,19 +374,79 @@ export class TunisieAnnonceScraper {
             return results;
           });
 
-          const timestamp = new Date().toISOString();
-          pageProperties.forEach((prop) => {
-            properties.push({
-              ...prop,
-              source_website: "tunisieannonce.com",
-              scrape_timestamp: timestamp,
-              price_currency: "TND",
-              size_unit: "m2",
-              property_type: prop.property_type || "APARTMENT",
-            });
-          });
+          console.log(
+            `Found ${pageProperties.length} listings on page ${pageNum}`,
+          );
 
-          console.log(`Found ${pageProperties.length} properties`);
+          for (let i = 0; i < pageProperties.length; i++) {
+            const basicInfo = pageProperties[i];
+
+            // Skip duplicates
+            if (seenIds.has(basicInfo.listing_id)) {
+              console.log(`  Skipping duplicate: ${basicInfo.listing_id}`);
+              continue;
+            }
+            seenIds.add(basicInfo.listing_id);
+
+            console.log(
+              `  [${i + 1}/${pageProperties.length}] ${basicInfo.title}`,
+            );
+
+            try {
+              const details = await this.scrapePropertyDetails(
+                page,
+                basicInfo.source_url,
+              );
+
+              if (details) {
+                const timestamp = new Date().toISOString();
+
+                // Only add if we have a valid price
+                if (details.price && details.price > 1000) {
+                  const completeProperty: ScrapedProperty = {
+                    source_url: basicInfo.source_url,
+                    listing_id: basicInfo.listing_id,
+                    title: basicInfo.title,
+                    price: details.price,
+                    size: details.size,
+                    bedrooms: details.bedrooms,
+                    bathrooms: details.bathrooms,
+                    description: details.description,
+                    images:
+                      details.images && details.images.length > 0
+                        ? details.images
+                        : undefined,
+                    governorate: details.governorate || basicInfo.governorate,
+                    delegation: details.delegation,
+                    neighborhood: details.neighborhood,
+                    phone: details.phone,
+                    source_website: "tunisieannonce.com",
+                    scrape_timestamp: timestamp,
+                    price_currency: "TND",
+                    size_unit: "m2",
+                    transaction_type: basicInfo.transaction_type,
+                    property_type: this.normalizePropertyType(
+                      basicInfo.property_type_raw,
+                    ),
+                  };
+
+                  properties.push(completeProperty);
+                  console.log(
+                    `    ✓ Price: ${details.price} TND, Size: ${details.size || "N/A"} m²`,
+                  );
+                } else {
+                  console.log(`    ⚠ Skipped: No valid price found`);
+                }
+              }
+
+              await this.delay(1000);
+            } catch (detailError: any) {
+              console.error(`  Error: ${detailError.message}`);
+              errors.push(
+                `Error scraping ${basicInfo.source_url}: ${detailError.message}`,
+              );
+            }
+          }
 
           if (pageNum < this.config.maxPages!) {
             await this.randomDelay();
@@ -223,7 +473,7 @@ export class TunisieAnnonceScraper {
       const filePath = path.join(dataDir, `tunisie-annonce_${timestamp}.json`);
       fs.writeFileSync(filePath, JSON.stringify(properties, null, 2));
 
-      console.log(`Saved ${properties.length} properties to ${filePath}`);
+      console.log(`\n✅ Saved ${properties.length} properties to ${filePath}`);
 
       return {
         source: "tunisie-annonce",
@@ -237,7 +487,7 @@ export class TunisieAnnonceScraper {
       };
     } catch (error: any) {
       const endTime = new Date().toISOString();
-      console.error("Fatal error in Tunisie Annonce scraper:", error);
+      console.error("Fatal error:", error);
       return {
         source: "tunisie-annonce",
         success: false,

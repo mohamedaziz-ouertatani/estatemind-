@@ -25,6 +25,8 @@ const nextConfig = {
       },
       { protocol: "https", hostname: "cdn.tayara.tn" },
       { protocol: "https", hostname: "www.tayara.tn" },
+      { protocol: "http", hostname: "www.tunisie-annonce.com" },
+      { protocol: "http", hostname: "logv31.xiti.com" },
     ],
   },
   experimental: {

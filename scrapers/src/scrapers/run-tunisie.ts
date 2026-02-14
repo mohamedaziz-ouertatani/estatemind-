@@ -4,7 +4,7 @@ async function run() {
   console.log("🚀 Starting Tunisie Annonce scraper...\n");
 
   const scraper = new TunisieAnnonceScraper({
-    maxPages: 5,
+    maxPages: 2,
     delayMin: 2000,
     delayMax: 5000,
   });
@@ -21,7 +21,7 @@ async function run() {
       console.log(`   Saved to: ${result.filePath}`);
     }
     if (result.errors.length > 0) {
-      console.log(`\n��️  Errors: ${result.errors.length}`);
+      console.log(`\n⚠️  Errors: ${result.errors.length}`);
       result.errors.forEach((err) => console.log(`     - ${err}`));
     }
 

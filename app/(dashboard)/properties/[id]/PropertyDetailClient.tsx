@@ -1,104 +1,173 @@
-"use client"
+"use client";
 
-import { useState } from 'react'
-import Link from 'next/link'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
-import { Badge } from '@/components/ui/badge'
-import { Separator } from '@/components/ui/separator'
-import { ImageGallery } from '@/components/property/ImageGallery'
-import { ValuationDisplay } from '@/components/valuation/ValuationDisplay'
-import { PropertyCard } from '@/components/property/PropertyCard'
-import { 
-  MapPin, BedDouble, Bath, Ruler, Building2, Car, TreePine, 
-  Waves, Upload, Heart, Share2, ChevronRight, Phone, Mail,
-  Sparkles, Home, Tag, Calendar, Eye, Copy, Check
-} from 'lucide-react'
-import { formatPrice, formatArea, getPropertyTypeLabel, getTransactionTypeLabel, formatDate } from '@/lib/utils'
-import { Property, Neighborhood } from '@prisma/client'
-import { ValuationResult } from '@/types/valuation'
+import { useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import dynamic from "next/dynamic";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
+import { ImageGallery } from "@/components/property/ImageGallery";
+import { ValuationDisplay } from "@/components/valuation/ValuationDisplay";
+import { PropertyCard } from "@/components/property/PropertyCard";
+import {
+  MapPin,
+  BedDouble,
+  Bath,
+  Ruler,
+  Building2,
+  Car,
+  TreePine,
+  Waves,
+  Upload,
+  Heart,
+  Share2,
+  ChevronRight,
+  Phone,
+  Mail,
+  Sparkles,
+  Home,
+  Tag,
+  Calendar,
+  Eye,
+  Copy,
+  Check,
+} from "lucide-react";
+import {
+  formatPrice,
+  formatArea,
+  getPropertyTypeLabel,
+  getTransactionTypeLabel,
+  formatDate,
+} from "@/lib/utils";
+import { Property, Neighborhood } from "@prisma/client";
+import { ValuationResult } from "@/types/valuation";
+
+// Dynamically import the map to avoid SSR issues
+const PropertyMapView = dynamic(
+  () => import("@/components/map/PropertyMapView"),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center">
+        <div className="text-center text-gray-500">
+          <MapPin className="w-12 h-12 mx-auto mb-2 animate-pulse" />
+          <p>Chargement de la carte...</p>
+        </div>
+      </div>
+    ),
+  },
+);
 
 interface PropertyDetailClientProps {
   property: Property & {
     owner: {
-      id: string
-      name: string | null
-      email: string
-      phone: string | null
-    }
-    valuations: any[]
-  }
-  similarProperties: Property[]
-  neighborhood: Neighborhood | null
+      id: string;
+      name: string | null;
+      email: string;
+      phone: string | null;
+    };
+    valuations: any[];
+  };
+  similarProperties: Property[];
+  neighborhood: Neighborhood | null;
 }
 
-export function PropertyDetailClient({ property, similarProperties, neighborhood }: PropertyDetailClientProps) {
-  const router = useRouter()
-  const [isSaved, setIsSaved] = useState(false)
-  const [isLoadingValuation, setIsLoadingValuation] = useState(false)
+export function PropertyDetailClient({
+  property,
+  similarProperties,
+  neighborhood,
+}: PropertyDetailClientProps) {
+  const router = useRouter();
+  const [isSaved, setIsSaved] = useState(false);
+  const [isLoadingValuation, setIsLoadingValuation] = useState(false);
   const [valuation, setValuation] = useState<ValuationResult | null>(
-    property.valuations[0] ? {
-      estimatedValue: property.valuations[0].estimatedValue,
-      confidenceScore: property.valuations[0].confidenceScore,
-      minValue: property.valuations[0].minValue,
-      maxValue: property.valuations[0].maxValue,
-      locationScore: property.valuations[0].locationScore,
-      sizeScore: property.valuations[0].sizeScore,
-      conditionScore: property.valuations[0].conditionScore,
-      amenitiesScore: property.valuations[0].amenitiesScore,
-      comparables: property.valuations[0].comparables,
-      aiInsights: property.valuations[0].aiInsights
-    } : null
-  )
-  const [copied, setCopied] = useState(false)
+    property.valuations[0]
+      ? {
+          estimatedValue: property.valuations[0].estimatedValue,
+          confidenceScore: property.valuations[0].confidenceScore,
+          minValue: property.valuations[0].minValue,
+          maxValue: property.valuations[0].maxValue,
+          locationScore: property.valuations[0].locationScore,
+          sizeScore: property.valuations[0].sizeScore,
+          conditionScore: property.valuations[0].conditionScore,
+          amenitiesScore: property.valuations[0].amenitiesScore,
+          comparables: property.valuations[0].comparables,
+          aiInsights: property.valuations[0].aiInsights,
+        }
+      : null,
+  );
+  const [copied, setCopied] = useState(false);
 
   const handleGetValuation = async () => {
-    setIsLoadingValuation(true)
+    setIsLoadingValuation(true);
     try {
-      const response = await fetch('/api/valuations', {
-        method: 'POST',
+      const response = await fetch("/api/valuations", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify({ propertyId: property.id })
-      })
+        body: JSON.stringify({ propertyId: property.id }),
+      });
 
       if (!response.ok) {
-        const error = await response.json()
-        // TODO: Use toast notification instead of alert
-        alert(error.message || 'Erreur lors de l\'évaluation')
-        return
+        const error = await response.json();
+        alert(error.message || "Erreur lors de l'évaluation");
+        return;
       }
 
-      const data = await response.json()
-      setValuation(data.valuation)
+      const data = await response.json();
+      setValuation(data.valuation);
     } catch (error) {
-      console.error('Valuation error:', error)
-      // TODO: Use toast notification instead of alert
-      alert('Erreur lors de l\'évaluation')
+      console.error("Valuation error:", error);
+      alert("Erreur lors de l'évaluation");
     } finally {
-      setIsLoadingValuation(false)
+      setIsLoadingValuation(false);
     }
-  }
+  };
 
   const handleSave = async () => {
-    // TODO: Implement actual save/unsave API call
-    setIsSaved(!isSaved)
-  }
+    setIsSaved(!isSaved);
+  };
 
   const handleShare = async () => {
-    const url = window.location.href
+    const url = window.location.href;
     try {
-      await navigator.clipboard.writeText(url)
-      setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy:', err)
+      console.error("Failed to copy:", err);
     }
-  }
+  };
 
-  const pricePerM2 = Math.round(property.price / property.size)
+  const pricePerM2 = Math.round(property.price / property.size);
+
+  // Prepare property data for map
+  const propertyForMap = {
+    properties: {
+      id: property.id,
+      title: property.title,
+      price: property.price,
+      size: property.size,
+      propertyType: property.propertyType,
+      bedrooms: property.bedrooms,
+      neighborhood: property.neighborhood,
+      delegation: property.delegation,
+      images: property.images,
+    },
+    geometry: {
+      type: "Point" as const,
+      coordinates: [property.longitude, property.latitude],
+    },
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -106,9 +175,13 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
       <div className="bg-white border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
           <nav className="flex items-center gap-2 text-sm text-gray-600">
-            <Link href="/dashboard" className="hover:text-blue-600">Accueil</Link>
+            <Link href="/dashboard" className="hover:text-blue-600">
+              Accueil
+            </Link>
             <ChevronRight className="w-4 h-4" />
-            <Link href="/properties" className="hover:text-blue-600">Propriétés</Link>
+            <Link href="/properties" className="hover:text-blue-600">
+              Propriétés
+            </Link>
             <ChevronRight className="w-4 h-4" />
             <span className="text-gray-900 truncate">{property.title}</span>
           </nav>
@@ -124,8 +197,10 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
             onClick={handleSave}
             className="gap-2"
           >
-            <Heart className={`w-4 h-4 ${isSaved ? 'fill-red-500 text-red-500' : ''}`} />
-            {isSaved ? 'Enregistré' : 'Enregistrer'}
+            <Heart
+              className={`w-4 h-4 ${isSaved ? "fill-red-500 text-red-500" : ""}`}
+            />
+            {isSaved ? "Enregistré" : "Enregistrer"}
           </Button>
           <Button
             variant="outline"
@@ -133,8 +208,12 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
             onClick={handleShare}
             className="gap-2"
           >
-            {copied ? <Check className="w-4 h-4" /> : <Share2 className="w-4 h-4" />}
-            {copied ? 'Copié!' : 'Partager'}
+            {copied ? (
+              <Check className="w-4 h-4" />
+            ) : (
+              <Share2 className="w-4 h-4" />
+            )}
+            {copied ? "Copié!" : "Partager"}
           </Button>
         </div>
 
@@ -147,13 +226,22 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
             {/* Title and Price */}
             <div>
               <div className="flex items-center gap-2 mb-3">
-                <Badge className="bg-blue-600">{getTransactionTypeLabel(property.transactionType)}</Badge>
-                <Badge variant="outline">{getPropertyTypeLabel(property.propertyType)}</Badge>
+                <Badge className="bg-blue-600">
+                  {getTransactionTypeLabel(property.transactionType)}
+                </Badge>
+                <Badge variant="outline">
+                  {getPropertyTypeLabel(property.propertyType)}
+                </Badge>
               </div>
-              <h1 className="text-3xl font-bold text-gray-900 mb-4">{property.title}</h1>
+              <h1 className="text-3xl font-bold text-gray-900 mb-4">
+                {property.title}
+              </h1>
               <div className="flex items-center gap-2 text-gray-600 mb-4">
                 <MapPin className="w-5 h-5" />
-                <span>{property.address || property.neighborhood}, {property.delegation}, {property.governorate}</span>
+                <span>
+                  {property.address || property.neighborhood},{" "}
+                  {property.delegation}, {property.governorate}
+                </span>
               </div>
               <div className="flex items-baseline gap-4">
                 <span className="text-4xl font-bold text-blue-600">
@@ -172,15 +260,31 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                  <DetailItem icon={<Ruler />} label="Surface" value={formatArea(property.size)} />
+                  <DetailItem
+                    icon={<Ruler />}
+                    label="Surface"
+                    value={formatArea(property.size)}
+                  />
                   {property.bedrooms && (
-                    <DetailItem icon={<BedDouble />} label="Chambres" value={property.bedrooms.toString()} />
+                    <DetailItem
+                      icon={<BedDouble />}
+                      label="Chambres"
+                      value={property.bedrooms.toString()}
+                    />
                   )}
                   {property.bathrooms && (
-                    <DetailItem icon={<Bath />} label="Salles de bain" value={property.bathrooms.toString()} />
+                    <DetailItem
+                      icon={<Bath />}
+                      label="Salles de bain"
+                      value={property.bathrooms.toString()}
+                    />
                   )}
                   {property.floor !== null && (
-                    <DetailItem icon={<Building2 />} label="Étage" value={property.floor.toString()} />
+                    <DetailItem
+                      icon={<Building2 />}
+                      label="Étage"
+                      value={property.floor.toString()}
+                    />
                   )}
                 </div>
               </CardContent>
@@ -193,14 +297,30 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                  {property.hasParking && <FeatureItem icon={<Car />} label="Parking" />}
-                  {property.hasElevator && <FeatureItem icon={<Upload />} label="Ascenseur" />}
-                  {property.hasGarden && <FeatureItem icon={<TreePine />} label="Jardin" />}
-                  {property.hasPool && <FeatureItem icon={<Waves />} label="Piscine" />}
-                  {property.hasSeaView && <FeatureItem icon={<Waves />} label="Vue Mer" />}
-                  {!property.hasParking && !property.hasElevator && !property.hasGarden && !property.hasPool && !property.hasSeaView && (
-                    <p className="text-gray-500 col-span-full">Aucun équipement spécial</p>
+                  {property.hasParking && (
+                    <FeatureItem icon={<Car />} label="Parking" />
                   )}
+                  {property.hasElevator && (
+                    <FeatureItem icon={<Upload />} label="Ascenseur" />
+                  )}
+                  {property.hasGarden && (
+                    <FeatureItem icon={<TreePine />} label="Jardin" />
+                  )}
+                  {property.hasPool && (
+                    <FeatureItem icon={<Waves />} label="Piscine" />
+                  )}
+                  {property.hasSeaView && (
+                    <FeatureItem icon={<Waves />} label="Vue Mer" />
+                  )}
+                  {!property.hasParking &&
+                    !property.hasElevator &&
+                    !property.hasGarden &&
+                    !property.hasPool &&
+                    !property.hasSeaView && (
+                      <p className="text-gray-500 col-span-full">
+                        Aucun équipement spécial
+                      </p>
+                    )}
                 </div>
               </CardContent>
             </Card>
@@ -219,7 +339,10 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
 
             {/* AI Valuation */}
             {valuation ? (
-              <ValuationDisplay valuation={valuation} listingPrice={property.price} />
+              <ValuationDisplay
+                valuation={valuation}
+                listingPrice={property.price}
+              />
             ) : (
               <Card className="border-blue-200">
                 <CardHeader>
@@ -228,7 +351,8 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
                     Obtenir une Évaluation IA
                   </CardTitle>
                   <CardDescription>
-                    Obtenez une estimation précise de la valeur de cette propriété basée sur l&apos;IA
+                    Obtenez une estimation précise de la valeur de cette
+                    propriété basée sur l&apos;IA
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -239,7 +363,9 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
                     size="lg"
                   >
                     <Sparkles className="w-5 h-5" />
-                    {isLoadingValuation ? 'Évaluation en cours...' : 'Obtenir l&apos;Évaluation'}
+                    {isLoadingValuation
+                      ? "Évaluation en cours..."
+                      : "Obtenir l&apos;Évaluation"}
                   </Button>
                 </CardContent>
               </Card>
@@ -255,15 +381,21 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
                 <CardContent className="space-y-4">
                   <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <p className="text-3xl font-bold text-blue-600">{neighborhood.overallScore}</p>
+                      <p className="text-3xl font-bold text-blue-600">
+                        {neighborhood.overallScore}
+                      </p>
                       <p className="text-sm text-gray-600">Score Global</p>
                     </div>
                     <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <p className="text-2xl font-bold text-gray-900">{formatPrice(neighborhood.avgPricePerM2)}</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {formatPrice(neighborhood.avgPricePerM2)}
+                      </p>
                       <p className="text-sm text-gray-600">Prix Moyen/m²</p>
                     </div>
                     <div className="text-center p-4 bg-gray-50 rounded-lg">
-                      <p className="text-2xl font-bold text-gray-900">{neighborhood.rentalYield.toFixed(1)}%</p>
+                      <p className="text-2xl font-bold text-gray-900">
+                        {neighborhood.rentalYield.toFixed(1)}%
+                      </p>
                       <p className="text-sm text-gray-600">Rendement Locatif</p>
                     </div>
                   </div>
@@ -277,18 +409,21 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
               </Card>
             )}
 
-            {/* Location Map Placeholder */}
+            {/* Interactive Map */}
             <Card>
               <CardHeader>
-                <CardTitle>Emplacement</CardTitle>
+                <CardTitle className="flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Emplacement
+                </CardTitle>
+                <CardDescription>
+                  {property.address || property.neighborhood},{" "}
+                  {property.delegation}, {property.governorate}
+                </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center">
-                  <div className="text-center text-gray-500">
-                    <MapPin className="w-12 h-12 mx-auto mb-2" />
-                    <p>Carte à venir</p>
-                    <p className="text-sm">Lat: {property.latitude}, Lng: {property.longitude}</p>
-                  </div>
+                <div className="w-full h-[400px] rounded-lg overflow-hidden">
+                  <PropertyMapView properties={[propertyForMap]} />
                 </div>
               </CardContent>
             </Card>
@@ -296,29 +431,34 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
             {/* Similar Properties */}
             {similarProperties.length > 0 && (
               <div>
-                <h2 className="text-2xl font-bold mb-4">Propriétés Similaires</h2>
+                <h2 className="text-2xl font-bold mb-4">
+                  Propriétés Similaires
+                </h2>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {similarProperties.map(prop => (
-                    <PropertyCard key={prop.id} property={{
-                      id: prop.id,
-                      title: prop.title,
-                      price: prop.price,
-                      size: prop.size,
-                      governorate: prop.governorate,
-                      delegation: prop.delegation,
-                      propertyType: prop.propertyType,
-                      transactionType: prop.transactionType,
-                      bedrooms: prop.bedrooms,
-                      bathrooms: prop.bathrooms,
-                      images: prop.images,
-                      hasParking: prop.hasParking,
-                      hasPool: prop.hasPool,
-                      hasGarden: prop.hasGarden,
-                      hasSeaView: prop.hasSeaView,
-                      aiValuation: prop.aiValuation,
-                      views: prop.views,
-                      listingDate: prop.listingDate
-                    }} />
+                  {similarProperties.map((prop) => (
+                    <PropertyCard
+                      key={prop.id}
+                      property={{
+                        id: prop.id,
+                        title: prop.title,
+                        price: prop.price,
+                        size: prop.size,
+                        governorate: prop.governorate,
+                        delegation: prop.delegation,
+                        propertyType: prop.propertyType,
+                        transactionType: prop.transactionType,
+                        bedrooms: prop.bedrooms,
+                        bathrooms: prop.bathrooms,
+                        images: prop.images,
+                        hasParking: prop.hasParking,
+                        hasPool: prop.hasPool,
+                        hasGarden: prop.hasGarden,
+                        hasSeaView: prop.hasSeaView,
+                        aiValuation: prop.aiValuation,
+                        views: prop.views,
+                        listingDate: prop.listingDate,
+                      }}
+                    />
                   ))}
                 </div>
               </div>
@@ -334,7 +474,9 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
               </CardHeader>
               <CardContent className="space-y-4">
                 <div>
-                  <p className="font-semibold text-lg">{property.owner.name || 'Vendeur'}</p>
+                  <p className="font-semibold text-lg">
+                    {property.owner.name || "Vendeur"}
+                  </p>
                 </div>
                 <Separator />
                 <div className="space-y-3">
@@ -367,7 +509,9 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
                     <Tag className="w-4 h-4" />
                     Type
                   </span>
-                  <span className="font-semibold">{getPropertyTypeLabel(property.propertyType)}</span>
+                  <span className="font-semibold">
+                    {getPropertyTypeLabel(property.propertyType)}
+                  </span>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
@@ -375,7 +519,9 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
                     <Home className="w-4 h-4" />
                     Transaction
                   </span>
-                  <span className="font-semibold">{getTransactionTypeLabel(property.transactionType)}</span>
+                  <span className="font-semibold">
+                    {getTransactionTypeLabel(property.transactionType)}
+                  </span>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
@@ -383,7 +529,9 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
                     <Calendar className="w-4 h-4" />
                     Date d&apos;annonce
                   </span>
-                  <span className="font-semibold">{formatDate(property.listingDate)}</span>
+                  <span className="font-semibold">
+                    {formatDate(property.listingDate)}
+                  </span>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
@@ -399,13 +547,13 @@ export function PropertyDetailClient({ property, similarProperties, neighborhood
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 interface DetailItemProps {
-  icon: React.ReactNode
-  label: string
-  value: string
+  icon: React.ReactNode;
+  label: string;
+  value: string;
 }
 
 function DetailItem({ icon, label, value }: DetailItemProps) {
@@ -415,12 +563,12 @@ function DetailItem({ icon, label, value }: DetailItemProps) {
       <p className="text-sm text-gray-600 mb-1">{label}</p>
       <p className="text-lg font-semibold">{value}</p>
     </div>
-  )
+  );
 }
 
 interface FeatureItemProps {
-  icon: React.ReactNode
-  label: string
+  icon: React.ReactNode;
+  label: string;
 }
 
 function FeatureItem({ icon, label }: FeatureItemProps) {
@@ -429,5 +577,5 @@ function FeatureItem({ icon, label }: FeatureItemProps) {
       <div className="text-blue-600">{icon}</div>
       <p className="text-sm font-medium">{label}</p>
     </div>
-  )
+  );
 }
