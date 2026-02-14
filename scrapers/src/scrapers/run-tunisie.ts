@@ -4,7 +4,7 @@ async function run() {
   console.log("🚀 Starting Tunisie Annonce scraper...\n");
 
   const scraper = new TunisieAnnonceScraper({
-    maxPages: 1,
+    maxPages: 2,
     delayMin: 2000,
     delayMax: 5000,
   });
