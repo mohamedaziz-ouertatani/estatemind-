@@ -189,10 +189,13 @@ export class TunisieAnnonceScraper {
             (text.includes("ville") || text.includes("quartier")) &&
             !result.neighborhood
           ) {
-            // Filter out dates and prices
+            // Filter out dates, prices, and breadcrumbs
             if (
               !nextText.match(/\d{2}\/\d{2}\/\d{4}/) &&
-              !nextText.toLowerCase().includes("dinar")
+              !nextText.toLowerCase().includes("dinar") &&
+              !nextText.includes("Accueil") &&
+              !nextText.includes(">") &&
+              nextText.length < 100
             ) {
               result.neighborhood = nextText;
             }
@@ -208,7 +211,9 @@ export class TunisieAnnonceScraper {
           if (
             text.length > 100 &&
             !text.includes("http") &&
-            !text.toLowerCase().includes("gouvernorat")
+            !text.toLowerCase().includes("gouvernorat") &&
+            !text.includes("Accueil") &&
+            !text.includes(">")
           ) {
             result.description = text.substring(0, 1000);
             break;
