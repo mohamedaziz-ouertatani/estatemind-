@@ -218,31 +218,36 @@ async function main() {
 
   console.log(`📁 Looking in: ${scrapedDataDir}`);
 
-  // Build pattern and normalize to POSIX for glob on Windows
-  const rawPattern = path.join(scrapedDataDir, "tayara_20260213_*.json");
-  const pattern = rawPattern.replace(/\\/g, "/");
+  // Build patterns for all scraper sources and normalize to POSIX for glob on Windows
+  const patterns = ["tayara_*.json", "mubawab_*.json", "tunisie-annonce_*.json"];
+  let allFiles: string[] = [];
 
-  console.log(`🔎 Using glob pattern: ${pattern}`);
+  for (const filePattern of patterns) {
+    const rawPattern = path.join(scrapedDataDir, filePattern);
+    const pattern = rawPattern.replace(/\\/g, "/");
+    console.log(`🔎 Searching pattern: ${filePattern}`);
+    const files = await glob(pattern, { nodir: true });
+    allFiles = allFiles.concat(files);
+  }
 
-  const files = await glob(pattern, { nodir: true });
+  allFiles.sort();
+  console.log(`\n📋 Found ${allFiles.length} total files to process`);
 
-  console.log(`📋 Found ${files.length} files matching pattern`);
-
-  if (files.length === 0) {
-    console.log("⚠️  No files found matching pattern.");
-    console.log(`   Pattern: tayara_20260213_*.json`);
+  if (allFiles.length === 0) {
+    console.log("⚠️  No files found matching patterns.");
+    console.log(`   Patterns: tayara_*.json, mubawab_*.json, tunisie-annonce_*.json`);
     console.log(`   In directory: ${scrapedDataDir}`);
 
     try {
-      const allFiles = fs.readdirSync(scrapedDataDir);
-      console.log(`\n📋 Files in directory: ${allFiles.join(", ")}`);
+      const dirFiles = fs.readdirSync(scrapedDataDir);
+      console.log(`\n📋 Files in directory: ${dirFiles.join(", ")}`);
     } catch (err) {
       console.error("❌ Could not read directory:", err);
     }
     return;
   }
 
-  for (const filePath of files) {
+  for (const filePath of allFiles) {
     await ingestJSONFile(filePath, scraperUser.id);
   }
 
