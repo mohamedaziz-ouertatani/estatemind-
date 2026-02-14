@@ -1,9 +1,4 @@
-/**
- * Mubawab.tn Scraper
- * Scrapes property listings from Mubawab.tn using Puppeteer
- */
-
-import puppeteer, { Browser, Page } from 'puppeteer';
+﻿import puppeteer, { Browser, Page } from 'puppeteer';
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
@@ -16,35 +11,20 @@ export class MubawabScraper {
   private browser: Browser | null = null;
   private config: ScraperConfig;
 
-  // Governorate URL mappings
-  private readonly GOVERNORATE_MAP: Record<string, string> = {
-    'Tunis': 'tunis',
-    'Ariana': 'ariana',
-    'Ben Arous': 'ben-arous',
-    'Manouba': 'manouba',
-    'Sousse': 'sousse',
-    'Sfax': 'sfax',
-    'Nabeul': 'nabeul',
-    'Monastir': 'monastir',
-  };
-
-  // Property type mappings
-  private readonly PROPERTY_TYPE_MAP: Record<string, string> = {
-    'apartment': 'ad',
-    'villa': 'vd',
-    'house': 'md',
-    'land': 'td',
-  };
+  private readonly CATEGORIES = [
+    { url: 'listing-promotion', type: 'NEUF', transaction: 'SALE', name: 'Immobilier Neuf' },
+    { url: 'sc/appartements-a-vendre', type: 'APARTMENT', transaction: 'SALE', name: 'Vente' },
+    { url: 'sc/appartements-a-louer', type: 'APARTMENT', transaction: 'RENT', name: 'Location' },
+    { url: 'sc/appartements-vacational', type: 'APARTMENT', transaction: 'RENT', name: 'Vacances' },
+  ];
 
   constructor(config: Partial<ScraperConfig> = {}) {
     this.config = {
       source: 'mubawab',
-      maxPages: config.maxPages || 5,
+      maxPages: config.maxPages || 3,
       delayMin: config.delayMin || 2000,
       delayMax: config.delayMax || 5000,
       userAgent: config.userAgent || 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-      governorates: config.governorates || ['Tunis'],
-      propertyTypes: config.propertyTypes || ['apartment'],
     };
   }
 
@@ -63,7 +43,7 @@ export class MubawabScraper {
     const properties: ScrapedProperty[] = [];
 
     try {
-      console.log('🚀 Starting Mubawab scraper...');
+      console.log('Starting Mubawab scraper...');
       
       this.browser = await puppeteer.launch({
         headless: true,
@@ -74,127 +54,143 @@ export class MubawabScraper {
       await page.setUserAgent(this.config.userAgent!);
       await page.setViewport({ width: 1920, height: 1080 });
 
-      // Scrape each governorate and property type combination
-      for (const governorate of this.config.governorates!) {
-        const govCode = this.GOVERNORATE_MAP[governorate] || 'tunis';
+      for (const category of this.CATEGORIES) {
+        console.log(`\nScraping ${category.name}...`);
         
-        for (const propertyType of this.config.propertyTypes!) {
-          const typeCode = this.PROPERTY_TYPE_MAP[propertyType] || 'ad';
-          
-          // Scrape multiple pages
-          for (let pageNum = 1; pageNum <= this.config.maxPages!; pageNum++) {
-            try {
-              console.log(`📄 Scraping ${governorate} - ${propertyType} - page ${pageNum}...`);
-              
-              const url = `https://www.mubawab.tn/fr/ct/${govCode}/lst/${typeCode}:p:${pageNum}`;
-              await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+        for (let pageNum = 1; pageNum <= this.config.maxPages!; pageNum++) {
+          try {
+            console.log(`  Page ${pageNum}/${this.config.maxPages}...`);
+            
+            const url = category.url.includes(':p:') 
+              ? `https://www.mubawab.tn/fr/${category.url.replace(':p:', `:p:${pageNum}`)}`
+              : `https://www.mubawab.tn/fr/${category.url}${category.url.includes('listing-promotion') ? `?page=${pageNum}` : `:p:${pageNum}`}`;
+            
+            await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+            await this.delay(2000);
 
-              // Wait for listings to load
-              await page.waitForSelector('ul.ulListing li.listingBox, div[class*="listing"]', { timeout: 10000 }).catch(() => {
-                console.log('⚠️  No listings found on this page');
+            const pageProperties = await page.evaluate((catType, catTransaction) => {
+              const allLinks = Array.from(document.querySelectorAll('a[href]'));
+              const propertyLinks = allLinks.filter(a => {
+                const href = a.getAttribute('href') || '';
+                return href.match(/\/fr\/[a-z]+-\d+\.html/) || href.includes('/detail/');
               });
 
-              // Extract property data from page
-              const pageProperties = await page.evaluate(() => {
-                const listings = document.querySelectorAll('ul.ulListing li.listingBox, div[class*="listing"], article');
-                const results: any[] = [];
+              const results: any[] = [];
+              const seen = new Set();
 
-                listings.forEach((listing) => {
-                  try {
-                    // Get link
-                    const linkElement = listing.querySelector('a[href*="/fr/"]') as HTMLAnchorElement;
-                    const sourceUrl = linkElement?.href || '';
-                    const listingId = sourceUrl.split('/').pop()?.split('-')[0] || '';
+              propertyLinks.forEach((link) => {
+                try {
+                  const href = link.getAttribute('href') || '';
+                  if (seen.has(href) || !href) return;
+                  seen.add(href);
 
-                    // Get title
-                    const title = listing.querySelector('h2, h3, [class*="title"]')?.textContent?.trim() || '';
+                  const sourceUrl = href.startsWith('http') ? href : 'https://www.mubawab.tn' + href;
+                  const listingId = href.match(/\d+/)?.[0] || '';
 
-                    // Get price
-                    const priceText = listing.querySelector('[class*="price"]')?.textContent?.trim() || '';
-                    const priceMatch = priceText.match(/[\d\s]+/);
-                    const price = priceMatch ? parseInt(priceMatch[0].replace(/\s/g, '')) : undefined;
-
-                    // Get location
-                    const locationElement = listing.querySelector('[class*="location"]');
-                    const locationText = locationElement?.textContent?.trim() || '';
-
-                    // Get features (size, bedrooms, etc.)
-                    const featuresText = listing.querySelector('[class*="features"], [class*="caracteristiques"]')?.textContent || '';
-                    
-                    // Extract size
-                    const sizeMatch = featuresText.match(/(\d+)\s*m[²2]/i);
-                    const size = sizeMatch ? parseInt(sizeMatch[1]) : undefined;
-
-                    // Extract bedrooms
-                    const bedroomMatch = featuresText.match(/(\d+)\s*chambre/i);
-                    const bedrooms = bedroomMatch ? parseInt(bedroomMatch[1]) : undefined;
-
-                    // Get images
-                    const imageElements = listing.querySelectorAll('img[src*="mubawab"], img[data-src*="mubawab"]');
-                    const images: string[] = [];
-                    imageElements.forEach(img => {
-                      const src = img.getAttribute('src') || img.getAttribute('data-src') || '';
-                      if (src && !src.includes('placeholder') && !src.includes('logo')) {
-                        images.push(src);
-                      }
-                    });
-
-                    if (sourceUrl && title) {
-                      results.push({
-                        source_url: sourceUrl,
-                        listing_id: listingId,
-                        title,
-                        price,
-                        size,
-                        bedrooms,
-                        description: locationText || undefined,
-                        images: images.length > 0 ? images : undefined,
-                      });
+                  let container = link.closest('li') || link.closest('div[class*="card"]') || link.closest('article');
+                  if (!container) {
+                    container = link.parentElement;
+                    let depth = 0;
+                    while (container && depth < 8) {
+                      const links = container.querySelectorAll('a[href]').length;
+                      if (links >= 1 && links <= 5) break;
+                      container = container.parentElement;
+                      depth++;
                     }
-                  } catch (err) {
-                    console.error('Error extracting listing:', err);
                   }
-                });
 
-                return results;
+                  if (!container) return;
+
+                  const allText = container.textContent || '';
+                  
+                  const titleEl = container.querySelector('h2, h3, h4, [class*="title"], [class*="Title"]');
+                  const title = titleEl?.textContent?.trim() || link.getAttribute('title') || '';
+
+                  const priceMatches = allText.matchAll(/(\d[\d\s.,]*)\s*(DT|TND|د\.ت|Dinar)/gi);
+                  let price: number | undefined;
+                  for (const match of priceMatches) {
+                    const numStr = match[1].replace(/\s/g, '').replace(/\./g, '').replace(/,/g, '');
+                    const num = parseInt(numStr);
+                    if (num > 100 && num < 10000000) {
+                      price = num;
+                      break;
+                    }
+                  }
+
+                  const sizeMatch = allText.match(/(\d+)\s*m[²2]/i);
+                  const size = sizeMatch ? parseInt(sizeMatch[1]) : undefined;
+
+                  const bedroomMatch = allText.match(/(\d+)\s*(chambre|bedroom|غرف)/i);
+                  const bedrooms = bedroomMatch ? parseInt(bedroomMatch[1]) : undefined;
+
+                  let location = '';
+                  const locationEl = container.querySelector('[class*="location"], [class*="Location"], [class*="ville"], [class*="city"]');
+                  if (locationEl) {
+                    location = locationEl.textContent?.trim() || '';
+                  }
+
+                  const images: string[] = [];
+                  const imgs = container.querySelectorAll('img');
+                  imgs.forEach(img => {
+                    const src = img.getAttribute('src') || img.getAttribute('data-src') || img.getAttribute('data-lazy') || '';
+                    if (src && src.includes('http') && !src.includes('logo') && !src.includes('icon')) {
+                      images.push(src);
+                    }
+                  });
+
+                  if (sourceUrl && title && title.length > 5) {
+                    results.push({
+                      source_url: sourceUrl,
+                      listing_id: listingId,
+                      title: title.substring(0, 200),
+                      price,
+                      size,
+                      bedrooms,
+                      description: location || undefined,
+                      images: images.length > 0 ? images.slice(0, 5) : undefined,
+                      property_type: catType,
+                      transaction_type: catTransaction,
+                    });
+                  }
+                } catch (err) {
+                  console.error('Error extracting listing:', err);
+                }
               });
 
-              // Add metadata to each property
-              const timestamp = new Date().toISOString();
-              pageProperties.forEach(prop => {
-                properties.push({
-                  ...prop,
-                  source_website: 'mubawab.tn',
-                  governorate,
-                  scrape_timestamp: timestamp,
-                  price_currency: 'TND',
-                  size_unit: 'm2',
-                  transaction_type: 'SALE',
-                  property_type: propertyType.toUpperCase(),
-                });
+              return results;
+            }, category.type, category.transaction);
+
+            const timestamp = new Date().toISOString();
+            pageProperties.forEach(prop => {
+              properties.push({
+                ...prop,
+                source_website: 'mubawab.tn',
+                governorate: prop.description?.split(',').pop()?.trim() || 'Tunis',
+                scrape_timestamp: timestamp,
+                price_currency: 'TND',
+                size_unit: 'm2',
               });
+            });
 
-              console.log(`✅ Found ${pageProperties.length} properties`);
+            console.log(`  Found ${pageProperties.length} properties`);
 
-              // Random delay between pages
+            if (pageNum < this.config.maxPages!) {
               await this.randomDelay();
-            } catch (pageError: any) {
-              const errorMsg = `Error scraping ${governorate} ${propertyType} page ${pageNum}: ${pageError.message}`;
-              console.error(`❌ ${errorMsg}`);
-              errors.push(errorMsg);
             }
+          } catch (pageError: any) {
+            const errorMsg = `Error scraping ${category.name} page ${pageNum}: ${pageError.message}`;
+            console.error(`  ${errorMsg}`);
+            errors.push(errorMsg);
           }
         }
       }
 
-      // Save results to file
       const endTime = new Date().toISOString();
       const now = new Date();
       const timestamp = now.toISOString().replace(/[:.]/g, '-').split('T')[0] + '_' + 
                        now.toISOString().replace(/[:.]/g, '').split('T')[1].slice(0, 6);
       const dataDir = path.join(__dirname, '../../data/bronze');
       
-      // Ensure directory exists
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
       }
@@ -202,7 +198,7 @@ export class MubawabScraper {
       const filePath = path.join(dataDir, `mubawab_${timestamp}.json`);
       fs.writeFileSync(filePath, JSON.stringify(properties, null, 2));
 
-      console.log(`💾 Saved ${properties.length} properties to ${filePath}`);
+      console.log(`\nSaved ${properties.length} properties to ${filePath}`);
 
       return {
         source: 'mubawab',
@@ -217,7 +213,7 @@ export class MubawabScraper {
 
     } catch (error: any) {
       const endTime = new Date().toISOString();
-      console.error('❌ Fatal error in Mubawab scraper:', error);
+      console.error('Fatal error in Mubawab scraper:', error);
       return {
         source: 'mubawab',
         success: false,
@@ -230,20 +226,8 @@ export class MubawabScraper {
     } finally {
       if (this.browser) {
         await this.browser.close();
-        console.log('🔒 Browser closed');
+        console.log('Browser closed');
       }
     }
   }
-}
-
-// Allow running directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  const scraper = new MubawabScraper({ maxPages: 2, governorates: ['Tunis'], propertyTypes: ['apartment'] });
-  scraper.scrape().then(result => {
-    console.log('\n📊 Scrape Result:', result);
-    process.exit(result.success ? 0 : 1);
-  }).catch(error => {
-    console.error('Fatal error:', error);
-    process.exit(1);
-  });
 }
