@@ -7,6 +7,7 @@ import type {
   ScrapedProperty,
   ScrapeResult,
 } from "../interfaces/scraper.interface.js";
+import { validateProperty } from "../utils/validators.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -97,23 +98,12 @@ export class TunisieAnnonceScraper {
   }
 
   /**
-   * FIXED: Filter out UI/system images
+   * FIXED: Filter to ONLY include real property images from /upload2/ directory
    */
   private filterRealImages(images: string[]): string[] {
     const filtered = images.filter((src) => {
-      const lower = src.toLowerCase();
-      return (
-        !lower.includes("space.gif") &&
-        !lower.includes("puce_") &&
-        !lower.includes("/config/") &&
-        !lower.includes("b_publier") &&
-        !lower.includes("logo") &&
-        !lower.includes("icon") &&
-        !lower.includes("/flags/") &&
-        !lower.includes("xiti.com") &&
-        !lower.includes("banners/") &&
-        !lower.includes("carte_tunisie")
-      );
+      // ONLY include images from /upload2/ directory (actual property images)
+      return src.includes("/upload2/");
     });
 
     return filtered.slice(0, 10); // Max 10 real images
@@ -199,10 +189,14 @@ export class TunisieAnnonceScraper {
             (text.includes("ville") || text.includes("quartier")) &&
             !result.neighborhood
           ) {
-            // Filter out dates and prices
+            // Filter out dates, prices, and breadcrumbs
+            // Note: Max length check matches validator MAX_NEIGHBORHOOD_LENGTH (100)
             if (
               !nextText.match(/\d{2}\/\d{2}\/\d{4}/) &&
-              !nextText.toLowerCase().includes("dinar")
+              !nextText.toLowerCase().includes("dinar") &&
+              !nextText.includes("Accueil") &&
+              !nextText.includes(">") &&
+              nextText.length < 100
             ) {
               result.neighborhood = nextText;
             }
@@ -218,7 +212,9 @@ export class TunisieAnnonceScraper {
           if (
             text.length > 100 &&
             !text.includes("http") &&
-            !text.toLowerCase().includes("gouvernorat")
+            !text.toLowerCase().includes("gouvernorat") &&
+            !text.includes("Accueil") &&
+            !text.includes(">")
           ) {
             result.description = text.substring(0, 1000);
             break;
@@ -247,7 +243,7 @@ export class TunisieAnnonceScraper {
         const phoneMatches = bodyText.match(phoneRegex);
         if (phoneMatches && phoneMatches.length > 0) {
           // Get the last phone number (usually the contact)
-          result.phone = phoneMatches[phoneMatches.length - 1];
+          result.contact_phone = phoneMatches[phoneMatches.length - 1];
         }
 
         return result;
@@ -419,7 +415,7 @@ export class TunisieAnnonceScraper {
                     governorate: details.governorate || basicInfo.governorate,
                     delegation: details.delegation,
                     neighborhood: details.neighborhood,
-                    phone: details.phone,
+                    contact_phone: details.contact_phone,
                     source_website: "tunisieannonce.com",
                     scrape_timestamp: timestamp,
                     price_currency: "TND",
@@ -430,10 +426,18 @@ export class TunisieAnnonceScraper {
                     ),
                   };
 
-                  properties.push(completeProperty);
-                  console.log(
-                    `    ✓ Price: ${details.price} TND, Size: ${details.size || "N/A"} m²`,
-                  );
+                  // Validate property before adding
+                  const validation = validateProperty(completeProperty);
+                  if (validation.valid) {
+                    properties.push(completeProperty);
+                    console.log(
+                      `    ✓ Price: ${details.price} TND, Size: ${details.size || "N/A"} m²`,
+                    );
+                  } else {
+                    console.log(
+                      `    ⚠ Skipped: Validation failed - ${validation.warnings.join("; ")}`,
+                    );
+                  }
                 } else {
                   console.log(`    ⚠ Skipped: No valid price found`);
                 }
