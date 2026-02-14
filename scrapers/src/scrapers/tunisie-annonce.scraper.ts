@@ -88,7 +88,12 @@ export class TunisieAnnonceScraper {
                 if (!title || title.length < 3) {
                   const titleMatch = href.match(/titre=([^&]+)/);
                   if (titleMatch) {
-                    title = decodeURIComponent(titleMatch[1].replace(/\+/g, " ")).trim();
+                    try {
+                      title = decodeURIComponent(titleMatch[1].replace(/\+/g, " ")).trim();
+                    } catch (err) {
+                      // Fallback if URI is malformed
+                      title = titleMatch[1].replace(/\+/g, " ").trim();
+                    }
                   }
                 }
 
