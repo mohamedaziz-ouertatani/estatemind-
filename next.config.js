@@ -24,6 +24,7 @@ const nextConfig = {
         hostname: "api.mapbox.com",
       },
       { protocol: "https", hostname: "cdn.tayara.tn" },
+      { protocol: "https", hostname: "www.tayara.tn" },
     ],
   },
   experimental: {
