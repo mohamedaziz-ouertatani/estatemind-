@@ -190,6 +190,7 @@ export class TunisieAnnonceScraper {
             !result.neighborhood
           ) {
             // Filter out dates, prices, and breadcrumbs
+            // Note: Max length check matches validator MAX_NEIGHBORHOOD_LENGTH (100)
             if (
               !nextText.match(/\d{2}\/\d{2}\/\d{4}/) &&
               !nextText.toLowerCase().includes("dinar") &&

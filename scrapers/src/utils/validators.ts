@@ -5,6 +5,18 @@
 
 import type { ScrapedProperty } from "../interfaces/scraper.interface.js";
 
+// Validation constants
+const MIN_PRICE_TND = 1000;
+const MAX_PRICE_TND = 100000000;
+const MAX_REASONABLE_SIZE_SQM = 10000;
+const MIN_SIZE_SQM = 1;
+const MAX_REASONABLE_BEDROOMS = 20;
+const MIN_BEDROOMS = 0;
+const MAX_REASONABLE_BATHROOMS = 20;
+const MIN_BATHROOMS = 0;
+const MAX_NEIGHBORHOOD_LENGTH = 100;
+const PREVIEW_LENGTH = 50;
+
 export interface ValidationResult {
   valid: boolean;
   warnings: string[];
@@ -22,9 +34,9 @@ export function validateProperty(
 
   // Validate price is reasonable (1,000 to 100 million TND)
   if (property.price !== undefined) {
-    if (property.price < 1000 || property.price > 100000000) {
+    if (property.price < MIN_PRICE_TND || property.price > MAX_PRICE_TND) {
       warnings.push(
-        `Invalid price: ${property.price} TND (should be between 1,000 and 100,000,000)`,
+        `Invalid price: ${property.price} TND (should be between ${MIN_PRICE_TND.toLocaleString()} and ${MAX_PRICE_TND.toLocaleString()})`,
       );
       return { valid: false, warnings };
     }
@@ -32,13 +44,13 @@ export function validateProperty(
 
   // Validate size doesn't match listing_id pattern (listing IDs are typically large numbers like 3450699)
   if (property.size !== undefined) {
-    if (property.size > 10000) {
+    if (property.size > MAX_REASONABLE_SIZE_SQM) {
       warnings.push(
-        `Suspicious size: ${property.size} m² (might be listing_id, should be < 10,000)`,
+        `Suspicious size: ${property.size} m² (might be listing_id, should be < ${MAX_REASONABLE_SIZE_SQM.toLocaleString()})`,
       );
       return { valid: false, warnings };
     }
-    if (property.size < 1) {
+    if (property.size < MIN_SIZE_SQM) {
       warnings.push(`Invalid size: ${property.size} m² (must be > 0)`);
       return { valid: false, warnings };
     }
@@ -46,13 +58,13 @@ export function validateProperty(
 
   // Validate bedrooms
   if (property.bedrooms !== undefined) {
-    if (property.bedrooms > 20) {
+    if (property.bedrooms > MAX_REASONABLE_BEDROOMS) {
       warnings.push(
-        `Suspicious bedroom count: ${property.bedrooms} (might be listing_id, should be <= 20)`,
+        `Suspicious bedroom count: ${property.bedrooms} (might be listing_id, should be <= ${MAX_REASONABLE_BEDROOMS})`,
       );
       return { valid: false, warnings };
     }
-    if (property.bedrooms < 0) {
+    if (property.bedrooms < MIN_BEDROOMS) {
       warnings.push(`Invalid bedroom count: ${property.bedrooms} (must be >= 0)`);
       return { valid: false, warnings };
     }
@@ -60,13 +72,13 @@ export function validateProperty(
 
   // Validate bathrooms
   if (property.bathrooms !== undefined) {
-    if (property.bathrooms > 20) {
+    if (property.bathrooms > MAX_REASONABLE_BATHROOMS) {
       warnings.push(
-        `Suspicious bathroom count: ${property.bathrooms} (might be listing_id, should be <= 20)`,
+        `Suspicious bathroom count: ${property.bathrooms} (might be listing_id, should be <= ${MAX_REASONABLE_BATHROOMS})`,
       );
       return { valid: false, warnings };
     }
-    if (property.bathrooms < 0) {
+    if (property.bathrooms < MIN_BATHROOMS) {
       warnings.push(
         `Invalid bathroom count: ${property.bathrooms} (must be >= 0)`,
       );
@@ -94,10 +106,10 @@ export function validateProperty(
     if (
       property.neighborhood.includes("Accueil") ||
       property.neighborhood.includes(">") ||
-      property.neighborhood.length > 100
+      property.neighborhood.length > MAX_NEIGHBORHOOD_LENGTH
     ) {
       warnings.push(
-        `Neighborhood contains breadcrumb/navigation text: ${property.neighborhood.substring(0, 50)}...`,
+        `Neighborhood contains breadcrumb/navigation text: ${property.neighborhood.substring(0, PREVIEW_LENGTH)}...`,
       );
       return { valid: false, warnings };
     }
