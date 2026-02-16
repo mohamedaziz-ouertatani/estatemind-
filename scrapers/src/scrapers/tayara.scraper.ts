@@ -19,6 +19,14 @@ import type {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+type TayaraCategory =
+  | 'appartements'
+  | 'maisons-et-villas'
+  | 'terrains-et-fermes'
+  | 'bureaux-et-plateaux'
+  | 'magasins%2c-commerces-et-locaux-industriels'
+  | 'autres-immobiliers';
+
 export class TayaraScraper {
   private browser: Browser | null = null;
   private config: ScraperConfig;
@@ -44,7 +52,7 @@ export class TayaraScraper {
   private randomDelay(): Promise<void> {
     const delay =
       Math.floor(
-        Math.random() * (this.config.delayMax! - this.config.delayMin!),
+        Math.random() * (this.config.delayMax! - this.config.delayMin!)
       ) + this.config.delayMin!;
     return this.delay(delay);
   }
@@ -109,7 +117,6 @@ export class TayaraScraper {
         return {};
       }
 
-      // /item/{category}/{governorate}/{delegation}/{title}/{id}
       const governorate = parts[itemIndex + 2];
       const delegation = parts[itemIndex + 3];
       const neighborhood = delegation;
@@ -316,7 +323,7 @@ export class TayaraScraper {
 
       this.browser = await puppeteer.launch({
         headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
+        args: ["--no-sandbox", "--disable-setuid-sandbox"],
       });
 
       const listPage = await this.browser.newPage();
@@ -396,7 +403,6 @@ export class TayaraScraper {
       };
     } catch (error: any) {
       const endTime = new Date().toISOString();
-      console.error('Fatal error in Tayara scraper:', error);
       return {
         source: 'tayara',
         success: false,
@@ -407,10 +413,7 @@ export class TayaraScraper {
         duration: new Date(endTime).getTime() - new Date(startTime).getTime(),
       };
     } finally {
-      if (this.browser) {
-        await this.browser.close();
-        console.log('Browser closed');
-      }
+      if (this.browser) await this.browser.close();
     }
   }
 }
