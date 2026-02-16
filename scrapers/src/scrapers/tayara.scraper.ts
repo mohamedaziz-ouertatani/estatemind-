@@ -57,20 +57,37 @@ export class TayaraScraper {
         try {
           console.log('Scraping page ' + pageNum + '/' + this.config.maxPages + '...');
           
-          const url = 'https://www.tayara.tn/ads/c/Immobilier?page=' + pageNum;
-          await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+          const urls = [
+            'https://www.tayara.tn/ads/c/Immobilier?page=' + pageNum,
+            'https://www.tayara.tn/ads/c/immobilier?page=' + pageNum,
+          ];
 
-          await page.waitForSelector('article', { timeout: 10000 });
+          let loaded = false;
+          for (const url of urls) {
+            await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
+            const hasListings = await page.evaluate(() =>
+              Boolean(document.querySelector('article, [data-testid*="ad"], a[href*="/item/"]'))
+            );
+
+            if (hasListings) {
+              loaded = true;
+              break;
+            }
+          }
+
+          if (!loaded) {
+            throw new Error('No listing nodes found on Tayara results page');
+          }
 
           const pageProperties = await page.evaluate(() => {
-            const listings = document.querySelectorAll('article');
+            const listings = document.querySelectorAll('article, [data-testid*="ad"], [class*="listing"]');
             const results: any[] = [];
 
             listings.forEach((listing) => {
               try {
                 const linkElement = listing.querySelector('a[href*="/item/"], a') as HTMLAnchorElement;
-                const sourceUrl = linkElement?.href || '';
-                const listingId = sourceUrl.split('/item/')[1]?.split('?')[0]?.split('/')[0] || '';
+                const sourceUrl = (linkElement?.href || '').split('?')[0];
+                const listingId = sourceUrl.split('/item/')[1]?.split('/')[0] || sourceUrl.split('/').filter(Boolean).pop() || '';
 
                 let title = '';
                 const titleSelectors = ['h2', 'h3', 'h4', '[class*="title"]', 'a'];
@@ -132,7 +149,7 @@ export class TayaraScraper {
                   }
                 });
 
-                if (sourceUrl && title && sourceUrl.includes('/item/')) {
+                if (sourceUrl && title) {
                   results.push({
                     source_url: sourceUrl,
                     listing_id: listingId,
