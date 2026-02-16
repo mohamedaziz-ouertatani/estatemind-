@@ -45,7 +45,7 @@ export class MubawabScraper {
   constructor(config: Partial<ScraperConfig> = {}) {
     this.config = {
       source: "mubawab",
-      maxPages: config.maxPages || 3,
+      maxPages: config.maxPages || 10,
       delayMin: config.delayMin || 2000,
       delayMax: config.delayMax || 5000,
       userAgent:

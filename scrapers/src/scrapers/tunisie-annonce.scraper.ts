@@ -11,14 +11,12 @@ import type {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Use the exact search parameters from your browser (if you want to customize rubriques, governorate, etc.):
 const BASE_SEARCH_PARAMS =
   "rech_cod_cat=1&rech_cod_rub=&rech_cod_typ=&rech_cod_sou_typ=" +
   "&rech_cod_pay=TN&rech_cod_reg=&rech_cod_vil=&rech_cod_loc=" +
   "&rech_prix_min=&rech_prix_max=&rech_surf_min=&rech_surf_max=" +
   "&rech_age=&rech_photo=&rech_typ_cli=&rech_order_by=31";
 
-// Date parser: "15/02/2026" → "2026-02-15T00:00:00.000Z"
 function parseTunisieAnnonceDate(dateStr: string | undefined): string | null {
   if (!dateStr) return null;
   const trimmed = dateStr.trim().split(" ")[0];
@@ -48,7 +46,7 @@ export class TunisieAnnonceScraper {
   constructor(config: Partial<ScraperConfig> = {}) {
     this.config = {
       source: "tunisie-annonce",
-      maxPages: config.maxPages || 2,
+      maxPages: config.maxPages || 10,
       delayMin: config.delayMin || 2000,
       delayMax: config.delayMax || 5000,
       userAgent:
@@ -112,34 +110,67 @@ export class TunisieAnnonceScraper {
         let description: string | null = null;
         let images: string[] = [];
         let contact_phone: string | null = null;
+        let bedrooms: number | undefined;
+        let bathrooms: number | undefined;
+        let floor: number | undefined;
 
-        // Surface, address, description
         const labelTds = Array.from(
           document.querySelectorAll("td.da_label_field"),
         );
         labelTds.forEach((labelTd) => {
           const label = labelTd.textContent?.trim().toLowerCase();
-          if (label === "surface") {
-            const nextTd = labelTd.nextElementSibling as HTMLElement | null;
-            let surfText = nextTd ? nextTd.textContent?.trim() : undefined;
-            if (surfText) {
-              let m = surfText.replace(",", ".").match(/(\d+([.,]\d+)?)/);
-              surface = m
-                ? Math.round(parseFloat(m[1].replace(",", ".")))
-                : null;
+          const nextTd = labelTd.nextElementSibling as HTMLElement | null;
+          let value = nextTd ? nextTd.textContent?.trim() : undefined;
+
+          if (label === "surface" && value) {
+            let m = value.replace(",", ".").match(/(\d+([.,]\d+)?)/);
+            surface = m ? Math.round(parseFloat(m[1].replace(",", "."))) : null;
+          }
+          if (label && label.startsWith("adresse")) address = value;
+          if (label === "texte") description = value;
+          if (
+            label &&
+            (label.includes("chambres") || label.includes("chambre"))
+          ) {
+            if (value) {
+              const m = value.replace(",", ".").match(/(\d+)/);
+              bedrooms = m ? parseInt(m[1]) : undefined;
             }
           }
-          if (label && label.startsWith("adresse")) {
-            const nextTd = labelTd.nextElementSibling as HTMLElement | null;
-            address = nextTd ? nextTd.textContent?.trim() : undefined;
+          if (label && label.includes("bain")) {
+            if (value) {
+              const m = value.replace(",", ".").match(/(\d+)/);
+              bathrooms = m ? parseInt(m[1]) : undefined;
+            }
           }
-          if (label === "texte") {
-            const nextTd = labelTd.nextElementSibling as HTMLElement | null;
-            description = nextTd ? nextTd.textContent?.trim() : undefined;
+          if (label === "étage" || label === "etage" || label === "floor") {
+            if (value) {
+              const m = value.replace(",", ".").match(/(\d+)/);
+              floor = m ? parseInt(m[1]) : undefined;
+            }
           }
         });
 
-        // Images
+        let descText = description ? description.toLowerCase() : "";
+
+        if (!bedrooms) {
+          const bedMatch = descText.match(/s\+(\d+)/);
+          if (bedMatch) bedrooms = parseInt(bedMatch[1]);
+          else {
+            const b2 = descText.match(/(\d+)\s+chambres?/);
+            if (b2) bedrooms = parseInt(b2[1]);
+          }
+        }
+        if (!bathrooms) {
+          const b2 = descText.match(/(\d+)\s+salles?\s+de\s+bain/);
+          if (b2) bathrooms = parseInt(b2[1]);
+          if (!bathrooms && descText.includes("sdb")) bathrooms = 1;
+        }
+        if (!floor) {
+          const floorMatch = descText.match(/(\d+)[èe]me\s+[ée]tage/);
+          if (floorMatch) floor = parseInt(floorMatch[1]);
+        }
+
         images = Array.from(document.querySelectorAll("img.PhotoMin1"))
           .map((img) => img.getAttribute("src") || "")
           .filter((src) => src.includes("/upload2/"))
@@ -149,7 +180,6 @@ export class TunisieAnnonceScraper {
               : "http://www.tunisie-annonce.com" + src,
           );
 
-        // Phones
         const phoneLi = document.querySelector("li.phone .da_contact_value");
         if (phoneLi) contact_phone = phoneLi.textContent?.trim() || null;
         if (!contact_phone) {
@@ -165,6 +195,9 @@ export class TunisieAnnonceScraper {
           description,
           images,
           contact_phone,
+          bedrooms,
+          bathrooms,
+          floor,
         };
       });
 
@@ -193,7 +226,7 @@ export class TunisieAnnonceScraper {
 
       for (let pageNum = 1; pageNum <= this.config.maxPages!; pageNum++) {
         try {
-          // NEW: build page URL correctly for every page!
+          // Correct URL with all params and explicit page number!
           const url = `http://www.tunisie-annonce.com/AnnoncesImmobilier.asp?${BASE_SEARCH_PARAMS}&rech_page_num=${pageNum}`;
           console.log(`Scraping page: ${url}`);
 
@@ -201,7 +234,7 @@ export class TunisieAnnonceScraper {
           await page.waitForSelector("tr.Tableau1", { timeout: 10000 });
           await this.delay(1500);
 
-          // Scrape rows using provided HTML structure!
+          // Extraction block
           const pageProperties = await page.evaluate(() => {
             const results: any[] = [];
             const rows = document.querySelectorAll("tr.Tableau1");
@@ -299,6 +332,9 @@ export class TunisieAnnonceScraper {
               description: details?.description ?? undefined,
               images: details?.images ?? [],
               contact_phone: details?.contact_phone ?? undefined,
+              bedrooms: details?.bedrooms ?? undefined,
+              bathrooms: details?.bathrooms ?? undefined,
+              floor: details?.floor ?? undefined,
             };
 
             const validation = validateProperty(fullProperty);
