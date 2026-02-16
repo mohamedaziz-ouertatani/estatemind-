@@ -1,4 +1,4 @@
-﻿import puppeteer, { Browser } from "puppeteer";
+import puppeteer, { Browser } from "puppeteer";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -36,53 +36,46 @@ export class TayaraScraper {
   private randomDelay(): Promise<void> {
     const delay =
       Math.floor(
-        Math.random() * (this.config.delayMax! - this.config.delayMin!),
+        Math.random() * (this.config.delayMax! - this.config.delayMin!)
       ) + this.config.delayMin!;
     return this.delay(delay);
   }
 
-  // Extract real price from detail page. Use page as Puppeteer Page.
   private async extractRealPriceFromDetail(
-    page: puppeteer.Page,
+    page: puppeteer.Page
   ): Promise<number | undefined> {
-    // 1. Try JSON-LD script
     try {
       const jsonld = await page.$eval(
         'script[type="application/ld+json"]',
-        (el) => el.textContent,
+        (el) => el.textContent
       );
       if (jsonld) {
         const obj = JSON.parse(jsonld);
         if (obj?.offers?.price) return Number(obj.offers.price);
-        // Sometimes "price": "250000"
       }
-    } catch (e) {
-      /* script missing? continue */
-    }
+    } catch {}
 
-    // 2. Try <data value="NUMBER" ...>
     try {
       const dataVal = await page.$eval("data[value]", (el) =>
-        el.getAttribute("value"),
+        el.getAttribute("value")
       );
       if (dataVal && /^\d+$/.test(dataVal)) return parseInt(dataVal, 10);
-    } catch (e) {}
+    } catch {}
 
-    // 3. Try hard: look for a price in text
     try {
       const priceText = await page.evaluate(() => {
-        // Find text near "DT" with numbers
         const el = document.querySelector(".text-red-600") || document.body;
         const m = el?.textContent?.replace(/\s/g, "").match(/(\d{3,})DT/);
         if (m) return m[1];
-        // Try fallback: "Prix de Vente : 250 MD"
+
         const desc = document.body.innerText || "";
         const mdMatch = desc.match(/Prix de Vente\s*:\s*([0-9]{1,3})\s*MD/i);
         if (mdMatch) return String(parseInt(mdMatch[1], 10) * 1000);
         return undefined;
       });
+
       if (priceText && /^\d+$/.test(priceText)) return parseInt(priceText, 10);
-    } catch (e) {}
+    } catch {}
 
     return undefined;
   }
@@ -106,31 +99,56 @@ export class TayaraScraper {
 
       for (let pageNum = 1; pageNum <= this.config.maxPages!; pageNum++) {
         try {
-          console.log(`Scraping page ${pageNum}/${this.config.maxPages}...`);
-          const url = "https://www.tayara.tn/ads/c/Immobilier?page=" + pageNum;
-          await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-          await page.waitForSelector("article", { timeout: 10000 });
-          // Collect basic listing data and URLs
+          console.log(
+            "Scraping page " + pageNum + "/" + this.config.maxPages + "..."
+          );
+
+          const urls = [
+            "https://www.tayara.tn/ads/c/Immobilier?page=" + pageNum,
+            "https://www.tayara.tn/ads/c/immobilier?page=" + pageNum,
+          ];
+
+          let loaded = false;
+          for (const url of urls) {
+            await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+            const hasListings = await page.evaluate(() =>
+              Boolean(
+                document.querySelector(
+                  'article, [data-testid*="ad"], a[href*="/item/"]'
+                )
+              )
+            );
+
+            if (hasListings) {
+              loaded = true;
+              break;
+            }
+          }
+
+          if (!loaded) {
+            throw new Error("No listing nodes found on Tayara results page");
+          }
+
           const pageProperties: any[] = await page.evaluate(() => {
-            const listings = document.querySelectorAll("article");
+            const listings = document.querySelectorAll(
+              'article, [data-testid*="ad"], [class*="listing"]'
+            );
             const results: any[] = [];
+
             listings.forEach((listing) => {
               try {
                 const linkElement = listing.querySelector(
-                  'a[href*="/item/"], a',
+                  'a[href*="/item/"], a'
                 ) as HTMLAnchorElement;
-                const sourceUrl = linkElement?.href || "";
+
+                const sourceUrl = (linkElement?.href || "").split("?")[0];
                 const listingId =
-                  sourceUrl.split("/item/")[1]?.split("?")[0]?.split("/")[0] ||
+                  sourceUrl.split("/item/")[1]?.split("/")[0] ||
+                  sourceUrl.split("/").filter(Boolean).pop() ||
                   "";
+
                 let title = "";
-                const titleSelectors = [
-                  "h2",
-                  "h3",
-                  "h4",
-                  '[class*="title"]',
-                  "a",
-                ];
+                const titleSelectors = ["h2", "h3", "h4", '[class*="title"]', "a"];
                 for (const sel of titleSelectors) {
                   const el = listing.querySelector(sel);
                   if (el?.textContent?.trim()) {
@@ -138,6 +156,7 @@ export class TayaraScraper {
                     break;
                   }
                 }
+
                 let locationText = "";
                 const locationSelectors = [
                   '[class*="location"]',
@@ -145,6 +164,7 @@ export class TayaraScraper {
                   "span",
                   "div",
                 ];
+
                 for (const sel of locationSelectors) {
                   const elements = listing.querySelectorAll(sel);
                   for (const el of elements) {
@@ -159,10 +179,12 @@ export class TayaraScraper {
                   }
                   if (locationText) break;
                 }
+
                 const locationParts = locationText
                   .split(",")
                   .map((s) => s.trim())
-                  .filter((s) => s);
+                  .filter(Boolean);
+
                 const allText = listing.textContent || "";
                 const bedroomMatch =
                   allText.match(/S\+(\d+)/i) ||
@@ -170,8 +192,10 @@ export class TayaraScraper {
                 const bedrooms = bedroomMatch
                   ? parseInt(bedroomMatch[1])
                   : undefined;
+
                 const sizeMatch = allText.match(/(\d+)\s*m[²2]/i);
                 const size = sizeMatch ? parseInt(sizeMatch[1]) : undefined;
+
                 const imageElements = listing.querySelectorAll("img");
                 const images: string[] = [];
                 imageElements.forEach((img) => {
@@ -188,7 +212,8 @@ export class TayaraScraper {
                     images.push(src);
                   }
                 });
-                if (sourceUrl && title && sourceUrl.includes("/item/")) {
+
+                if (sourceUrl && title) {
                   results.push({
                     source_url: sourceUrl,
                     listing_id: listingId,
@@ -200,17 +225,15 @@ export class TayaraScraper {
                     neighborhood: locationParts[0] || undefined,
                     bedrooms,
                     size,
-                    images: images.length > 0 ? images.slice(0, 5) : undefined,
+                    images: images.length ? images.slice(0, 5) : undefined,
                   });
                 }
-              } catch {
-                /* skip listing error */
-              }
+              } catch {}
             });
+
             return results;
           });
 
-          // Go to each listing and get the real price!!
           for (const prop of pageProperties) {
             try {
               const detailPage = await this.browser.newPage();
@@ -219,23 +242,22 @@ export class TayaraScraper {
                 waitUntil: "domcontentloaded",
                 timeout: 20000,
               });
-              // random delay on each detail load (avoid bans)
+
               await this.randomDelay();
-              // Get real price
               prop.price = await this.extractRealPriceFromDetail(detailPage);
-              // Extra: If price still missing, fallback
               if (typeof prop.price === "undefined" || isNaN(prop.price))
                 prop.price = null;
-              const timestamp = new Date().toISOString();
+
               properties.push({
                 ...prop,
                 source_website: "tayara.tn",
-                scrape_timestamp: timestamp,
+                scrape_timestamp: new Date().toISOString(),
                 price_currency: "TND",
                 size_unit: "m2",
                 transaction_type: "SALE",
                 property_type: "APARTMENT",
               });
+
               await detailPage.close();
             } catch (e: any) {
               errors.push(`Error on listing ${prop.source_url}: ${e.message}`);
@@ -243,12 +265,9 @@ export class TayaraScraper {
           }
 
           console.log(
-            "Page " +
-              pageNum +
-              ": collected " +
-              pageProperties.length +
-              " listings",
+            "Page " + pageNum + ": collected " + pageProperties.length
           );
+
           if (pageNum < this.config.maxPages!) await this.randomDelay();
         } catch (pageError: any) {
           const errorMsg =
@@ -264,10 +283,13 @@ export class TayaraScraper {
         now.toISOString().replace(/[:.]/g, "-").split("T")[0] +
         "_" +
         now.toISOString().replace(/[:.]/g, "").split("T")[1].slice(0, 6);
+
       const dataDir = path.join(__dirname, "../../data/bronze");
       if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+
       const filePath = path.join(dataDir, "tayara_" + timestamp + ".json");
       fs.writeFileSync(filePath, JSON.stringify(properties, null, 2));
+
       console.log("Saved " + properties.length + " properties to " + filePath);
 
       return {

@@ -1,4 +1,4 @@
-﻿import puppeteer, { Browser, Page } from "puppeteer";
+import puppeteer, { Browser, Page } from "puppeteer";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -32,7 +32,7 @@ function validateProperty(property: ScrapedProperty): {
   valid: boolean;
   warnings: string[];
 } {
-  const warnings = [];
+  const warnings: string[] = [];
   if (!property.source_url) warnings.push("Missing source_url");
   if (!property.listing_id) warnings.push("Missing listing_id");
   if (!property.title) warnings.push("Missing title");
@@ -62,7 +62,7 @@ export class TunisieAnnonceScraper {
   private randomDelay(): Promise<void> {
     const delay =
       Math.floor(
-        Math.random() * (this.config.delayMax! - this.config.delayMin!),
+        Math.random() * (this.config.delayMax! - this.config.delayMin!)
       ) + this.config.delayMin!;
     return this.delay(delay);
   }
@@ -88,22 +88,17 @@ export class TunisieAnnonceScraper {
       normalized.includes("surface")
     )
       return "COMMERCIAL";
-    if (normalized.includes("maisons")) return "HOUSE";
     return "UNKNOWN";
-  }
-
-  private extractIdFromLink(href: string): string {
-    const m = href.match(/cod_ann=(\d+)/);
-    return m ? m[1] : "";
   }
 
   private async scrapePropertyDetails(
     page: Page,
-    url: string,
+    url: string
   ): Promise<Partial<ScrapedProperty> | null> {
     try {
       await page.goto(url, { waitUntil: "networkidle2", timeout: 35000 });
       await this.delay(1200);
+
       const details = await page.evaluate(() => {
         let surface: number | null = null;
         let address: string | null = null;
@@ -115,34 +110,36 @@ export class TunisieAnnonceScraper {
         let floor: number | undefined;
 
         const labelTds = Array.from(
-          document.querySelectorAll("td.da_label_field"),
+          document.querySelectorAll("td.da_label_field")
         );
+
         labelTds.forEach((labelTd) => {
           const label = labelTd.textContent?.trim().toLowerCase();
           const nextTd = labelTd.nextElementSibling as HTMLElement | null;
-          let value = nextTd ? nextTd.textContent?.trim() : undefined;
+          const value = nextTd ? nextTd.textContent?.trim() : undefined;
 
           if (label === "surface" && value) {
-            let m = value.replace(",", ".").match(/(\d+([.,]\d+)?)/);
+            const m = value.replace(",", ".").match(/(\d+([.,]\d+)?)/);
             surface = m ? Math.round(parseFloat(m[1].replace(",", "."))) : null;
           }
-          if (label && label.startsWith("adresse")) address = value;
-          if (label === "texte") description = value;
-          if (
-            label &&
-            (label.includes("chambres") || label.includes("chambre"))
-          ) {
+
+          if (label && label.startsWith("adresse")) address = value || null;
+          if (label === "texte") description = value || null;
+
+          if (label && (label.includes("chambres") || label.includes("chambre"))) {
             if (value) {
               const m = value.replace(",", ".").match(/(\d+)/);
               bedrooms = m ? parseInt(m[1]) : undefined;
             }
           }
+
           if (label && label.includes("bain")) {
             if (value) {
               const m = value.replace(",", ".").match(/(\d+)/);
               bathrooms = m ? parseInt(m[1]) : undefined;
             }
           }
+
           if (label === "étage" || label === "etage" || label === "floor") {
             if (value) {
               const m = value.replace(",", ".").match(/(\d+)/);
@@ -151,7 +148,7 @@ export class TunisieAnnonceScraper {
           }
         });
 
-        let descText = description ? description.toLowerCase() : "";
+        const descText = description ? description.toLowerCase() : "";
 
         if (!bedrooms) {
           const bedMatch = descText.match(/s\+(\d+)/);
@@ -161,11 +158,13 @@ export class TunisieAnnonceScraper {
             if (b2) bedrooms = parseInt(b2[1]);
           }
         }
+
         if (!bathrooms) {
           const b2 = descText.match(/(\d+)\s+salles?\s+de\s+bain/);
           if (b2) bathrooms = parseInt(b2[1]);
           if (!bathrooms && descText.includes("sdb")) bathrooms = 1;
         }
+
         if (!floor) {
           const floorMatch = descText.match(/(\d+)[èe]me\s+[ée]tage/);
           if (floorMatch) floor = parseInt(floorMatch[1]);
@@ -177,24 +176,25 @@ export class TunisieAnnonceScraper {
           .map((src) =>
             src.startsWith("http")
               ? src
-              : "http://www.tunisie-annonce.com" + src,
+              : "http://www.tunisie-annonce.com" + src
           );
 
         const phoneLi = document.querySelector("li.phone .da_contact_value");
         if (phoneLi) contact_phone = phoneLi.textContent?.trim() || null;
+
         if (!contact_phone) {
           const cellLi = document.querySelector(
-            "li.cellphone .da_contact_value",
+            "li.cellphone .da_contact_value"
           );
           contact_phone = cellLi?.textContent?.trim() || null;
         }
 
         return {
-          size: surface || undefined,
-          address,
-          description,
+          size: surface ?? undefined,
+          address: address || undefined,
+          description: description || undefined,
           images,
-          contact_phone,
+          contact_phone: contact_phone || undefined,
           bedrooms,
           bathrooms,
           floor,
@@ -216,17 +216,18 @@ export class TunisieAnnonceScraper {
 
     try {
       console.log("Starting Tunisie Annonce scraper...");
+
       this.browser = await puppeteer.launch({
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
       });
+
       const page = await this.browser.newPage();
       await page.setUserAgent(this.config.userAgent!);
       await page.setViewport({ width: 1920, height: 1080 });
 
       for (let pageNum = 1; pageNum <= this.config.maxPages!; pageNum++) {
         try {
-          // Correct URL with all params and explicit page number!
           const url = `http://www.tunisie-annonce.com/AnnoncesImmobilier.asp?${BASE_SEARCH_PARAMS}&rech_page_num=${pageNum}`;
           console.log(`Scraping page: ${url}`);
 
@@ -234,47 +235,48 @@ export class TunisieAnnonceScraper {
           await page.waitForSelector("tr.Tableau1", { timeout: 10000 });
           await this.delay(1500);
 
-          // Extraction block
           const pageProperties = await page.evaluate(() => {
             const results: any[] = [];
-            const rows = document.querySelectorAll("tr.Tableau1");
+            const rows = document.querySelectorAll("tr.Tableau1, tr.Tableau2");
+
             rows.forEach((row) => {
               try {
                 const cells = row.querySelectorAll("td");
                 if (cells.length < 13) return;
+
                 const govCell = cells[1];
                 const govLink = govCell.querySelector("a");
                 const governorate = govLink
                   ? govLink.textContent?.trim()
                   : govCell.textContent?.trim();
+
                 const transactionCell = cells[3];
                 const transText = transactionCell.textContent?.trim() || "";
+
                 const propertyTypeCell = cells[5];
                 const propertyTypeText =
                   propertyTypeCell.textContent?.trim() || "";
+
                 let title = "";
                 let listingUrl = "";
                 let listing_id = "";
+
                 const links = cells[7].querySelectorAll("a");
                 links.forEach((link) => {
-                  if (
-                    link.getAttribute("href") &&
-                    link
-                      .getAttribute("href")!
-                      .includes("Details_Annonces_Immobilier")
-                  ) {
+                  const href = link.getAttribute("href") || "";
+                  if (href.includes("Details_Annonces_Immobilier")) {
                     title = link.textContent?.trim() || "";
-                    listingUrl = link.getAttribute("href");
-                    const idMatch = link
-                      .getAttribute("href")!
-                      .match(/cod_ann=(\d+)/);
+                    listingUrl = href;
+                    const idMatch = href.match(/cod_ann=(\d+)/);
                     if (idMatch) listing_id = idMatch[1];
                   }
                 });
+
                 if (!listingUrl) return;
-                if (!listing_id) return;
+
                 const priceCell = cells[9];
                 const priceString = priceCell.textContent || "";
+
                 const dateCell = cells[11];
                 const listing_date = dateCell.textContent?.trim() || undefined;
 
@@ -292,10 +294,9 @@ export class TunisieAnnonceScraper {
                   price: priceString,
                   listing_date,
                 });
-              } catch (err) {
-                // skip row if broken
-              }
+              } catch {}
             });
+
             return results;
           });
 
@@ -305,49 +306,52 @@ export class TunisieAnnonceScraper {
             const basicInfo = pageProperties[i];
             if (seenIds.has(basicInfo.listing_id)) continue;
             seenIds.add(basicInfo.listing_id);
-            let priceNum = undefined;
-            if (typeof basicInfo.price === "string")
-              priceNum = this.parsePrice(basicInfo.price);
-            let listingDateISO: string | null = null;
-            if (basicInfo.listing_date) {
-              listingDateISO = parseTunisieAnnonceDate(basicInfo.listing_date);
-            }
+
+            const priceNum =
+              typeof basicInfo.price === "string"
+                ? this.parsePrice(basicInfo.price)
+                : undefined;
+
+            const listingDateISO = basicInfo.listing_date
+              ? parseTunisieAnnonceDate(basicInfo.listing_date) || undefined
+              : undefined;
+
             const details = await this.scrapePropertyDetails(
               page,
-              basicInfo.source_url,
+              basicInfo.source_url
             );
 
-            const timestamp = new Date().toISOString();
             const fullProperty: ScrapedProperty = {
               ...basicInfo,
               price: priceNum,
               price_currency: "TND",
               property_type: this.normalizePropertyType(
-                basicInfo.property_type,
+                basicInfo.property_type
               ),
-              scrape_timestamp: timestamp,
+              scrape_timestamp: new Date().toISOString(),
               listing_date: listingDateISO,
-              size: details?.size ?? undefined,
-              address: details?.address ?? undefined,
-              description: details?.description ?? undefined,
+              size: details?.size,
+              address: details?.address,
+              description: details?.description,
               images: details?.images ?? [],
-              contact_phone: details?.contact_phone ?? undefined,
-              bedrooms: details?.bedrooms ?? undefined,
-              bathrooms: details?.bathrooms ?? undefined,
-              floor: details?.floor ?? undefined,
+              contact_phone: details?.contact_phone,
+              bedrooms: details?.bedrooms,
+              bathrooms: details?.bathrooms,
+              floor: details?.floor,
             };
 
             const validation = validateProperty(fullProperty);
             if (validation.valid) {
               properties.push(fullProperty);
               console.log(
-                `[${i + 1}/${pageProperties.length}] ${basicInfo.title} (${basicInfo.price})`,
+                `[${i + 1}/${pageProperties.length}] ${basicInfo.title} (${basicInfo.price})`
               );
             } else {
               console.warn(
-                `    ⚠ Skipped: Validation failed - ${validation.warnings.join("; ")}`,
+                `⚠ Skipped: Validation failed - ${validation.warnings.join("; ")}`
               );
             }
+
             await this.delay(600);
           }
 
@@ -365,11 +369,15 @@ export class TunisieAnnonceScraper {
         now.toISOString().replace(/[:.]/g, "-").split("T")[0] +
         "_" +
         now.toISOString().replace(/[:.]/g, "").split("T")[1].slice(0, 6);
+
       const dataDir = path.join(__dirname, "../../data/bronze");
       if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
+
       const filePath = path.join(dataDir, `tunisie-annonce_${timestamp}.json`);
       fs.writeFileSync(filePath, JSON.stringify(properties, null, 2));
-      console.log(`\n✅ Saved ${properties.length} properties to ${filePath}`);
+
+      console.log(`Saved ${properties.length} properties to ${filePath}`);
+
       return {
         source: "tunisie-annonce",
         success: errors.length === 0,
@@ -383,6 +391,7 @@ export class TunisieAnnonceScraper {
     } catch (error: any) {
       const endTime = new Date().toISOString();
       console.error("Fatal error:", error);
+
       return {
         source: "tunisie-annonce",
         success: false,

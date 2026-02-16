@@ -224,7 +224,7 @@ export class MubawabScraper {
           '[class*="phone"], [href^="tel:"]',
         );
         if (phoneElement) {
-          result.phone =
+          result.contact_phone =
             phoneElement.textContent?.trim() ||
             phoneElement.getAttribute("href")?.replace("tel:", "");
         }
@@ -317,16 +317,14 @@ export class MubawabScraper {
             // Extract listing URLs from page
             const listingUrls = await page.evaluate(() => {
               const urls: string[] = [];
-              const links = document.querySelectorAll(
-                'a[href*="/fr/"][href*="listing"]',
-              );
+              const links = document.querySelectorAll('a[href*="/fr/"]');
 
               links.forEach((link) => {
                 const href = link.getAttribute("href");
-                if (href && href.includes("/fr/") && href.match(/\/\d+$/)) {
-                  const fullUrl = href.startsWith("http")
+                if (href && href.includes("/fr/") && href.match(/\/\d+(?:\?.*)?$/)) {
+                  const fullUrl = (href.startsWith("http")
                     ? href
-                    : `https://www.mubawab.tn${href}`;
+                    : `https://www.mubawab.tn${href}`).split("?")[0];
                   urls.push(fullUrl);
                 }
               });
@@ -372,7 +370,7 @@ export class MubawabScraper {
                     images: details.images,
                     governorate: details.governorate,
                     delegation: details.delegation,
-                    phone: details.phone,
+                    contact_phone: details.contact_phone,
                     source_website: "mubawab.tn",
                     scrape_timestamp: timestamp,
                     price_currency: "TND",
@@ -414,7 +412,7 @@ export class MubawabScraper {
         "_" +
         now.toISOString().replace(/[:.]/g, "").split("T")[1].slice(0, 6);
 
-      const dataDir = path.join(__dirname, "../../../data/bronze");
+      const dataDir = path.join(__dirname, "../../data/bronze");
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
       }
