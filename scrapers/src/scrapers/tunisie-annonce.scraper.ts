@@ -106,8 +106,6 @@ export class TunisieAnnonceScraper {
         let images: string[] = [];
         let contact_phone: string | null = null;
         let bedrooms: number | undefined;
-        let bathrooms: number | undefined;
-        let floor: number | undefined;
 
         const labelTds = Array.from(
           document.querySelectorAll("td.da_label_field")
@@ -123,27 +121,18 @@ export class TunisieAnnonceScraper {
             surface = m ? Math.round(parseFloat(m[1].replace(",", "."))) : null;
           }
 
-          if (label && label.startsWith("adresse")) address = value || null;
-          if (label === "texte") description = value || null;
+          if (label && label.startsWith("adresse")) {
+            address = value || null;
+          }
+
+          if (label === "texte") {
+            description = value || null;
+          }
 
           if (label && (label.includes("chambres") || label.includes("chambre"))) {
             if (value) {
               const m = value.replace(",", ".").match(/(\d+)/);
               bedrooms = m ? parseInt(m[1]) : undefined;
-            }
-          }
-
-          if (label && label.includes("bain")) {
-            if (value) {
-              const m = value.replace(",", ".").match(/(\d+)/);
-              bathrooms = m ? parseInt(m[1]) : undefined;
-            }
-          }
-
-          if (label === "étage" || label === "etage" || label === "floor") {
-            if (value) {
-              const m = value.replace(",", ".").match(/(\d+)/);
-              floor = m ? parseInt(m[1]) : undefined;
             }
           }
         });
@@ -157,17 +146,6 @@ export class TunisieAnnonceScraper {
             const b2 = descText.match(/(\d+)\s+chambres?/);
             if (b2) bedrooms = parseInt(b2[1]);
           }
-        }
-
-        if (!bathrooms) {
-          const b2 = descText.match(/(\d+)\s+salles?\s+de\s+bain/);
-          if (b2) bathrooms = parseInt(b2[1]);
-          if (!bathrooms && descText.includes("sdb")) bathrooms = 1;
-        }
-
-        if (!floor) {
-          const floorMatch = descText.match(/(\d+)[èe]me\s+[ée]tage/);
-          if (floorMatch) floor = parseInt(floorMatch[1]);
         }
 
         images = Array.from(document.querySelectorAll("img.PhotoMin1"))
@@ -196,8 +174,6 @@ export class TunisieAnnonceScraper {
           images,
           contact_phone: contact_phone || undefined,
           bedrooms,
-          bathrooms,
-          floor,
         };
       });
 
@@ -273,6 +249,11 @@ export class TunisieAnnonceScraper {
                 });
 
                 if (!listingUrl) return;
+                if (!listing_id) {
+                  const idFromHref = (listingUrl.match(/cod_ann=(\d+)/) || [])[1];
+                  if (!idFromHref) return;
+                  listing_id = idFromHref;
+                }
 
                 const priceCell = cells[9];
                 const priceString = priceCell.textContent || "";
@@ -307,14 +288,15 @@ export class TunisieAnnonceScraper {
             if (seenIds.has(basicInfo.listing_id)) continue;
             seenIds.add(basicInfo.listing_id);
 
-            const priceNum =
-              typeof basicInfo.price === "string"
-                ? this.parsePrice(basicInfo.price)
-                : undefined;
+            let priceNum = undefined;
+            if (typeof basicInfo.price === "string")
+              priceNum = this.parsePrice(basicInfo.price);
 
-            const listingDateISO = basicInfo.listing_date
-              ? parseTunisieAnnonceDate(basicInfo.listing_date) || undefined
-              : undefined;
+            let listingDateISO: string | undefined = undefined;
+            if (basicInfo.listing_date) {
+              listingDateISO =
+                parseTunisieAnnonceDate(basicInfo.listing_date) || undefined;
+            }
 
             const details = await this.scrapePropertyDetails(
               page,
@@ -329,15 +311,13 @@ export class TunisieAnnonceScraper {
                 basicInfo.property_type
               ),
               scrape_timestamp: new Date().toISOString(),
-              listing_date: listingDateISO,
-              size: details?.size,
-              address: details?.address,
-              description: details?.description,
+              listing_date: listingDateISO ?? undefined,
+              size: details?.size ?? undefined,
+              address: details?.address ?? undefined,
+              description: details?.description ?? undefined,
               images: details?.images ?? [],
               contact_phone: details?.contact_phone,
               bedrooms: details?.bedrooms,
-              bathrooms: details?.bathrooms,
-              floor: details?.floor,
             };
 
             const validation = validateProperty(fullProperty);
