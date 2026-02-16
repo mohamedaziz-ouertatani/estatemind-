@@ -52,6 +52,8 @@ export default function ScrapingAdminPage() {
   const [jobStatus, setJobStatus] = useState<any>(null);
   const [realtimeData, setRealtimeData] = useState<RealTimeResponse | null>(null);
   const [autoRefresh, setAutoRefresh] = useState(true);
+  const [pendingIngestionJobId, setPendingIngestionJobId] = useState<string | null>(null);
+  const [ingestionLoading, setIngestionLoading] = useState(false);
 
   const API_KEY = process.env.NEXT_PUBLIC_SCRAPER_API_KEY;
 
@@ -161,6 +163,51 @@ export default function ScrapingAdminPage() {
       alert(`❌ Failed to check status: ${error.message}`);
     } finally {
       setLoading(false);
+    }
+  }
+
+
+  useEffect(() => {
+    if (!lastJobId || !realtimeData?.trackedJob?.result?.success) {
+      return;
+    }
+
+    if (realtimeData.trackedJob.id === pendingIngestionJobId) {
+      return;
+    }
+
+    if (realtimeData.trackedJob.id === lastJobId) {
+      setPendingIngestionJobId(lastJobId);
+    }
+  }, [lastJobId, pendingIngestionJobId, realtimeData]);
+
+  async function acceptAndIngest() {
+    if (!pendingIngestionJobId) {
+      return;
+    }
+
+    setIngestionLoading(true);
+    try {
+      const response = await fetch('/api/scrape/ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({ jobId: pendingIngestionJobId }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to ingest scraped data');
+      }
+
+      alert(`✅ Data ingested for job ${pendingIngestionJobId}`);
+      setPendingIngestionJobId(null);
+    } catch (error: any) {
+      alert(`❌ Ingestion failed: ${error.message}`);
+    } finally {
+      setIngestionLoading(false);
     }
   }
 
@@ -351,6 +398,20 @@ export default function ScrapingAdminPage() {
                 </Button>
               </div>
             </div>
+
+            {pendingIngestionJobId && (
+              <div className="mb-4 border border-amber-300 bg-amber-50 rounded p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <p className="font-medium text-amber-900">📥 Scrape completed</p>
+                  <p className="text-sm text-amber-800">
+                    Job #{pendingIngestionJobId} finished successfully. Do you want to ingest this scraped data into the database now?
+                  </p>
+                </div>
+                <Button onClick={acceptAndIngest} disabled={ingestionLoading}>
+                  {ingestionLoading ? '⏳ Ingesting...' : '✅ Accept & Ingest'}
+                </Button>
+              </div>
+            )}
 
             {realtimeData && (
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
