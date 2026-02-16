@@ -5,19 +5,108 @@
  * Manage and monitor scraping jobs
  */
 
-import { useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 
 type Tab = 'quick' | 'individual' | 'monitor';
+
+type QueueMetrics = {
+  waiting: number;
+  active: number;
+  completed: number;
+  failed: number;
+  delayed: number;
+};
+
+type RealTimeJob = {
+  id: string;
+  state: string;
+  progress: number | object;
+  data: {
+    sources: string[];
+    type?: 'full' | 'incremental';
+    maxPages?: number;
+    priority?: 'high' | 'normal' | 'low';
+  };
+  failedReason?: string;
+  result?: {
+    success: boolean;
+    totalPropertiesScraped: number;
+    results?: Array<{ source: string; success: boolean; propertiesScraped: number }>;
+  };
+};
+
+type RealTimeResponse = {
+  success: boolean;
+  timestamp: string;
+  queue: QueueMetrics;
+  trackedJob: RealTimeJob | null;
+  recentJobs: RealTimeJob[];
+};
 
 export default function ScrapingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('quick');
   const [loading, setLoading] = useState(false);
   const [lastJobId, setLastJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<any>(null);
+  const [realtimeData, setRealtimeData] = useState<RealTimeResponse | null>(null);
+  const [autoRefresh, setAutoRefresh] = useState(true);
+  const [pendingIngestionJobId, setPendingIngestionJobId] = useState<string | null>(null);
+  const [ingestionLoading, setIngestionLoading] = useState(false);
 
   const API_KEY = process.env.NEXT_PUBLIC_SCRAPER_API_KEY;
+
+  const fetchRealtimeStatus = useCallback(async () => {
+    const params = new URLSearchParams({ limit: '8' });
+    if (lastJobId) {
+      params.set('jobId', lastJobId);
+    }
+
+    const response = await fetch(`/api/scrape/realtime?${params.toString()}`, {
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Unable to fetch real-time scraping status');
+    }
+
+    setRealtimeData(data);
+
+    if (data.trackedJob) {
+      setJobStatus({
+        state: data.trackedJob.state,
+        progress:
+          typeof data.trackedJob.progress === 'number'
+            ? data.trackedJob.progress
+            : 0,
+        result: data.trackedJob.result,
+      });
+    }
+  }, [lastJobId]);
+
+  useEffect(() => {
+    if (activeTab !== 'monitor') {
+      return;
+    }
+
+    fetchRealtimeStatus().catch((error) => {
+      console.error('Failed to fetch real-time data:', error);
+    });
+
+    if (!autoRefresh) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      fetchRealtimeStatus().catch((error) => {
+        console.error('Failed to fetch real-time data:', error);
+      });
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab, autoRefresh, fetchRealtimeStatus]);
 
   /**
    * Trigger a scrape job
@@ -33,7 +122,7 @@ export default function ScrapingAdminPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${API_KEY}`,
+          Authorization: `Bearer ${API_KEY}`,
         },
         body: JSON.stringify({
           sources,
@@ -46,6 +135,7 @@ export default function ScrapingAdminPage() {
 
       if (data.success) {
         setLastJobId(data.jobId);
+        await fetchRealtimeStatus();
         alert(`✅ Scrape job queued! Job ID: ${data.jobId}`);
       } else {
         alert(`❌ Error: ${data.error}`);
@@ -68,18 +158,56 @@ export default function ScrapingAdminPage() {
 
     setLoading(true);
     try {
-      const response = await fetch(`/api/scrape?jobId=${lastJobId}`);
-      const data = await response.json();
-
-      if (data.success) {
-        setJobStatus(data);
-      } else {
-        alert(`❌ Error: ${data.error}`);
-      }
+      await fetchRealtimeStatus();
     } catch (error: any) {
       alert(`❌ Failed to check status: ${error.message}`);
     } finally {
       setLoading(false);
+    }
+  }
+
+
+  useEffect(() => {
+    if (!lastJobId || !realtimeData?.trackedJob?.result?.success) {
+      return;
+    }
+
+    if (realtimeData.trackedJob.id === pendingIngestionJobId) {
+      return;
+    }
+
+    if (realtimeData.trackedJob.id === lastJobId) {
+      setPendingIngestionJobId(lastJobId);
+    }
+  }, [lastJobId, pendingIngestionJobId, realtimeData]);
+
+  async function acceptAndIngest() {
+    if (!pendingIngestionJobId) {
+      return;
+    }
+
+    setIngestionLoading(true);
+    try {
+      const response = await fetch('/api/scrape/ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({ jobId: pendingIngestionJobId }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to ingest scraped data');
+      }
+
+      alert(`✅ Data ingested for job ${pendingIngestionJobId}`);
+      setPendingIngestionJobId(null);
+    } catch (error: any) {
+      alert(`❌ Ingestion failed: ${error.message}`);
+    } finally {
+      setIngestionLoading(false);
     }
   }
 
@@ -252,18 +380,76 @@ export default function ScrapingAdminPage() {
       {activeTab === 'monitor' && (
         <div className="space-y-6">
           <Card className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Job Monitor</h2>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Real-Time Scraping Agent</h2>
+              <div className="flex items-center gap-2">
+                <button
+                  className={`px-3 py-1 rounded text-sm ${
+                    autoRefresh
+                      ? 'bg-emerald-100 text-emerald-800'
+                      : 'bg-gray-100 text-gray-700'
+                  }`}
+                  onClick={() => setAutoRefresh((prev) => !prev)}
+                >
+                  {autoRefresh ? '🟢 Live (3s)' : '⚪ Paused'}
+                </button>
+                <Button onClick={checkJobStatus} disabled={loading}>
+                  {loading ? '⏳ Checking...' : '🔄 Refresh Status'}
+                </Button>
+              </div>
+            </div>
+
+            {pendingIngestionJobId && (
+              <div className="mb-4 border border-amber-300 bg-amber-50 rounded p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <p className="font-medium text-amber-900">📥 Scrape completed</p>
+                  <p className="text-sm text-amber-800">
+                    Job #{pendingIngestionJobId} finished successfully. Do you want to ingest this scraped data into the database now?
+                  </p>
+                </div>
+                <Button onClick={acceptAndIngest} disabled={ingestionLoading}>
+                  {ingestionLoading ? '⏳ Ingesting...' : '✅ Accept & Ingest'}
+                </Button>
+              </div>
+            )}
+
+            {realtimeData && (
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
+                <div className="border rounded p-3">
+                  <p className="text-xs text-gray-600">Waiting</p>
+                  <p className="text-xl font-semibold">{realtimeData.queue.waiting}</p>
+                </div>
+                <div className="border rounded p-3">
+                  <p className="text-xs text-gray-600">Active</p>
+                  <p className="text-xl font-semibold text-blue-600">{realtimeData.queue.active}</p>
+                </div>
+                <div className="border rounded p-3">
+                  <p className="text-xs text-gray-600">Completed</p>
+                  <p className="text-xl font-semibold text-emerald-600">{realtimeData.queue.completed}</p>
+                </div>
+                <div className="border rounded p-3">
+                  <p className="text-xs text-gray-600">Failed</p>
+                  <p className="text-xl font-semibold text-red-600">{realtimeData.queue.failed}</p>
+                </div>
+                <div className="border rounded p-3">
+                  <p className="text-xs text-gray-600">Delayed</p>
+                  <p className="text-xl font-semibold">{realtimeData.queue.delayed}</p>
+                </div>
+              </div>
+            )}
 
             {lastJobId ? (
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-sm text-gray-600">Last Job ID:</p>
+                    <p className="text-sm text-gray-600">Tracked Job ID:</p>
                     <p className="font-mono font-medium">{lastJobId}</p>
                   </div>
-                  <Button onClick={checkJobStatus} disabled={loading}>
-                    {loading ? '⏳ Checking...' : '🔄 Refresh Status'}
-                  </Button>
+                  {realtimeData?.timestamp && (
+                    <p className="text-xs text-gray-500">
+                      Last update: {new Date(realtimeData.timestamp).toLocaleTimeString()}
+                    </p>
+                  )}
                 </div>
 
                 {jobStatus && (
@@ -325,9 +511,31 @@ export default function ScrapingAdminPage() {
               </div>
             ) : (
               <p className="text-gray-500 text-center py-8">
-                No recent jobs. Trigger a scrape to see job status here.
+                No tracked job yet. Trigger a scrape to monitor it in real-time.
               </p>
             )}
+
+            {realtimeData?.recentJobs?.length ? (
+              <div className="mt-6">
+                <p className="text-sm text-gray-600 mb-2">Recent Queue Activity</p>
+                <div className="space-y-2">
+                  {realtimeData.recentJobs.map((job) => (
+                    <div key={job.id} className="border rounded p-3 text-sm">
+                      <div className="flex items-center justify-between">
+                        <p className="font-mono">#{job.id}</p>
+                        <p className="capitalize font-medium">{job.state}</p>
+                      </div>
+                      <p className="text-gray-600 mt-1">
+                        Sources: {job.data.sources.join(', ')} • Type: {job.data.type || 'incremental'}
+                      </p>
+                      {job.failedReason && (
+                        <p className="text-red-600 mt-1">Reason: {job.failedReason}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </Card>
         </div>
       )}
