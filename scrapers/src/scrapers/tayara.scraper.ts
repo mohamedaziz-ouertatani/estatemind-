@@ -1,4 +1,4 @@
-import puppeteer, { Browser } from "puppeteer";
+import puppeteer, { Browser, Page } from "puppeteer";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -11,6 +11,14 @@ import type {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+type TayaraCategory =
+  | "appartements"
+  | "maisons-et-villas"
+  | "terrains-et-fermes"
+  | "bureaux-et-plateaux"
+  | "magasins%2c-commerces-et-locaux-industriels"
+  | "autres-immobiliers";
+
 export class TayaraScraper {
   private browser: Browser | null = null;
   private config: ScraperConfig;
@@ -19,8 +27,8 @@ export class TayaraScraper {
     this.config = {
       source: "tayara",
       maxPages: config.maxPages || 5,
-      delayMin: config.delayMin || 2000,
-      delayMax: config.delayMax || 5000,
+      delayMin: config.delayMin || 1500,
+      delayMax: config.delayMax || 3500,
       userAgent:
         config.userAgent ||
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
@@ -29,55 +37,80 @@ export class TayaraScraper {
     };
   }
 
-  private async delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private async delay(ms: number) {
+    return new Promise((r) => setTimeout(r, ms));
   }
 
-  private randomDelay(): Promise<void> {
-    const delay =
+  private async randomDelay() {
+    const d =
       Math.floor(
-        Math.random() * (this.config.delayMax! - this.config.delayMin!)
+        Math.random() * (this.config.delayMax! - this.config.delayMin!),
       ) + this.config.delayMin!;
-    return this.delay(delay);
+    return this.delay(d);
   }
 
-  private async extractRealPriceFromDetail(
-    page: puppeteer.Page
-  ): Promise<number | undefined> {
+  private normalizePrice(p?: number | null) {
+    if (!p || isNaN(p)) return null;
+    if (p <= 1) return null;
+    if (p < 100) return null;
+    return p;
+  }
+
+  private mapPropertyTypeFromCategory(cat: TayaraCategory) {
+    switch (cat) {
+      case "appartements":
+        return "APARTMENT";
+      case "maisons-et-villas":
+        return "HOUSE";
+      case "terrains-et-fermes":
+        return "LAND";
+      case "bureaux-et-plateaux":
+        return "OFFICE";
+      case "magasins%2c-commerces-et-locaux-industriels":
+        return "COMMERCIAL";
+      default:
+        return "OTHER";
+    }
+  }
+
+  private inferTransactionType(title: string, category: TayaraCategory) {
+    const t = title.toLowerCase();
+    if (t.includes("louer") || t.includes("location") || t.includes("à louer"))
+      return "RENT";
+    if (category === "bureaux-et-plateaux" || category.includes("magasins"))
+      return t.includes("louer") ? "RENT" : "SALE";
+    return "SALE";
+  }
+
+  private async extractRealPriceFromDetail(page: Page): Promise<number | null> {
+    // JSON-LD
     try {
-      const jsonld = await page.$eval(
+      const jsonld = await page.$$eval(
         'script[type="application/ld+json"]',
-        (el) => el.textContent
+        (els) => els.map((e) => e.textContent).filter(Boolean),
       );
-      if (jsonld) {
-        const obj = JSON.parse(jsonld);
+
+      for (const raw of jsonld) {
+        const obj = JSON.parse(raw!);
         if (obj?.offers?.price) return Number(obj.offers.price);
       }
     } catch {}
 
-    try {
-      const dataVal = await page.$eval("data[value]", (el) =>
-        el.getAttribute("value")
-      );
-      if (dataVal && /^\d+$/.test(dataVal)) return parseInt(dataVal, 10);
-    } catch {}
-
+    // Visible price
     try {
       const priceText = await page.evaluate(() => {
-        const el = document.querySelector(".text-red-600") || document.body;
-        const m = el?.textContent?.replace(/\s/g, "").match(/(\d{3,})DT/);
-        if (m) return m[1];
-
-        const desc = document.body.innerText || "";
-        const mdMatch = desc.match(/Prix de Vente\s*:\s*([0-9]{1,3})\s*MD/i);
-        if (mdMatch) return String(parseInt(mdMatch[1], 10) * 1000);
-        return undefined;
+        const el =
+          document.querySelector('[data-testid="ad-price"]') ||
+          document.querySelector('[class*="price"]') ||
+          document.body;
+        const txt = el?.textContent || "";
+        const m = txt.replace(/\s/g, "").match(/(\d{3,})/);
+        return m ? m[1] : null;
       });
-
-      if (priceText && /^\d+$/.test(priceText)) return parseInt(priceText, 10);
+      return priceText ? Number(priceText) : null;
     } catch {}
 
-    return undefined;
+    return null;
   }
 
   async scrape(): Promise<ScrapeResult> {
@@ -86,8 +119,6 @@ export class TayaraScraper {
     const properties: ScrapedProperty[] = [];
 
     try {
-      console.log("Starting Tayara scraper...");
-
       this.browser = await puppeteer.launch({
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -98,199 +129,108 @@ export class TayaraScraper {
       await page.setViewport({ width: 1920, height: 1080 });
 
       for (let pageNum = 1; pageNum <= this.config.maxPages!; pageNum++) {
-        try {
-          console.log(
-            "Scraping page " + pageNum + "/" + this.config.maxPages + "..."
-          );
+        const url = `https://www.tayara.tn/ads/c/Immobilier?page=${pageNum}`;
+        await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
+        await page.waitForSelector("article");
 
-          const urls = [
-            "https://www.tayara.tn/ads/c/Immobilier?page=" + pageNum,
-            "https://www.tayara.tn/ads/c/immobilier?page=" + pageNum,
-          ];
+        const pageProperties: any[] = await page.evaluate(() => {
+          const results: any[] = [];
+          document.querySelectorAll("article").forEach((listing) => {
+            try {
+              const a = listing.querySelector(
+                'a[href*="/item/"]',
+              ) as HTMLAnchorElement;
+              if (!a?.href) return;
 
-          let loaded = false;
-          for (const url of urls) {
-            await page.goto(url, { waitUntil: "networkidle2", timeout: 30000 });
-            const hasListings = await page.evaluate(() =>
-              Boolean(
-                document.querySelector(
-                  'article, [data-testid*="ad"], a[href*="/item/"]'
-                )
-              )
-            );
+              const source_url = a.href.split("?")[0];
+              const parts = source_url.split("/").filter(Boolean);
 
-            if (hasListings) {
-              loaded = true;
-              break;
-            }
-          }
+              const category = parts[4];
+              const governorate = parts[5];
+              const delegation = parts[6];
+              const neighborhood = parts[7];
+              const listing_id = parts[parts.length - 1];
 
-          if (!loaded) {
-            throw new Error("No listing nodes found on Tayara results page");
-          }
+              const title =
+                listing.querySelector("h2,h3,h4")?.textContent?.trim() ||
+                a.textContent?.trim() ||
+                "";
 
-          const pageProperties: any[] = await page.evaluate(() => {
-            const listings = document.querySelectorAll(
-              'article, [data-testid*="ad"], [class*="listing"]'
-            );
-            const results: any[] = [];
+              const allText = listing.textContent || "";
+              const bedrooms =
+                allText.match(/S\+(\d+)/i)?.[1] ||
+                allText.match(/(\d+)\s*chambres?/i)?.[1];
+              const size = allText.match(/(\d+)\s*m[²2]/i)?.[1];
 
-            listings.forEach((listing) => {
-              try {
-                const linkElement = listing.querySelector(
-                  'a[href*="/item/"], a'
-                ) as HTMLAnchorElement;
+              const images: string[] = [];
+              listing.querySelectorAll("img").forEach((img) => {
+                const src =
+                  img.getAttribute("src") || img.getAttribute("data-src") || "";
+                if (src && src.includes("http")) images.push(src);
+              });
 
-                const sourceUrl = (linkElement?.href || "").split("?")[0];
-                const listingId =
-                  sourceUrl.split("/item/")[1]?.split("/")[0] ||
-                  sourceUrl.split("/").filter(Boolean).pop() ||
-                  "";
+              results.push({
+                source_url,
+                listing_id,
+                title,
+                category,
+                governorate,
+                delegation,
+                neighborhood,
+                bedrooms: bedrooms ? Number(bedrooms) : undefined,
+                size: size ? Number(size) : undefined,
+                images: images.slice(0, 5),
+              });
+            } catch {}
+          });
+          return results;
+        });
 
-                let title = "";
-                const titleSelectors = ["h2", "h3", "h4", '[class*="title"]', "a"];
-                for (const sel of titleSelectors) {
-                  const el = listing.querySelector(sel);
-                  if (el?.textContent?.trim()) {
-                    title = el.textContent.trim();
-                    break;
-                  }
-                }
-
-                let locationText = "";
-                const locationSelectors = [
-                  '[class*="location"]',
-                  '[class*="address"]',
-                  "span",
-                  "div",
-                ];
-
-                for (const sel of locationSelectors) {
-                  const elements = listing.querySelectorAll(sel);
-                  for (const el of elements) {
-                    const text = el.textContent?.trim() || "";
-                    if (
-                      text.includes(",") ||
-                      text.match(/Tunis|Ariana|Sousse|Sfax/i)
-                    ) {
-                      locationText = text;
-                      break;
-                    }
-                  }
-                  if (locationText) break;
-                }
-
-                const locationParts = locationText
-                  .split(",")
-                  .map((s) => s.trim())
-                  .filter(Boolean);
-
-                const allText = listing.textContent || "";
-                const bedroomMatch =
-                  allText.match(/S\+(\d+)/i) ||
-                  allText.match(/(\d+)\s*chambres?/i);
-                const bedrooms = bedroomMatch
-                  ? parseInt(bedroomMatch[1])
-                  : undefined;
-
-                const sizeMatch = allText.match(/(\d+)\s*m[²2]/i);
-                const size = sizeMatch ? parseInt(sizeMatch[1]) : undefined;
-
-                const imageElements = listing.querySelectorAll("img");
-                const images: string[] = [];
-                imageElements.forEach((img) => {
-                  const src =
-                    img.getAttribute("src") ||
-                    img.getAttribute("data-src") ||
-                    "";
-                  if (
-                    src &&
-                    !src.includes("placeholder") &&
-                    !src.includes("logo") &&
-                    src.includes("http")
-                  ) {
-                    images.push(src);
-                  }
-                });
-
-                if (sourceUrl && title) {
-                  results.push({
-                    source_url: sourceUrl,
-                    listing_id: listingId,
-                    title,
-                    governorate:
-                      locationParts[locationParts.length - 1] || undefined,
-                    delegation:
-                      locationParts[locationParts.length - 2] || undefined,
-                    neighborhood: locationParts[0] || undefined,
-                    bedrooms,
-                    size,
-                    images: images.length ? images.slice(0, 5) : undefined,
-                  });
-                }
-              } catch {}
+        for (const prop of pageProperties) {
+          try {
+            const detail = await this.browser.newPage();
+            await detail.setUserAgent(this.config.userAgent!);
+            await detail.goto(prop.source_url, {
+              waitUntil: "domcontentloaded",
+              timeout: 20000,
             });
 
-            return results;
-          });
+            const rawPrice = await this.extractRealPriceFromDetail(detail);
+            const price = this.normalizePrice(rawPrice);
 
-          for (const prop of pageProperties) {
-            try {
-              const detailPage = await this.browser.newPage();
-              await detailPage.setUserAgent(this.config.userAgent!);
-              await detailPage.goto(prop.source_url, {
-                waitUntil: "domcontentloaded",
-                timeout: 20000,
-              });
+            const property_type = this.mapPropertyTypeFromCategory(
+              prop.category,
+            );
+            const transaction_type = this.inferTransactionType(
+              prop.title,
+              prop.category,
+            );
 
-              await this.randomDelay();
-              prop.price = await this.extractRealPriceFromDetail(detailPage);
-              if (typeof prop.price === "undefined" || isNaN(prop.price))
-                prop.price = null;
+            properties.push({
+              ...prop,
+              price,
+              source_website: "tayara.tn",
+              scrape_timestamp: new Date().toISOString(),
+              price_currency: "TND",
+              size_unit: "m2",
+              transaction_type,
+              property_type,
+            });
 
-              properties.push({
-                ...prop,
-                source_website: "tayara.tn",
-                scrape_timestamp: new Date().toISOString(),
-                price_currency: "TND",
-                size_unit: "m2",
-                transaction_type: "SALE",
-                property_type: "APARTMENT",
-              });
-
-              await detailPage.close();
-            } catch (e: any) {
-              errors.push(`Error on listing ${prop.source_url}: ${e.message}`);
-            }
+            await detail.close();
+            await this.randomDelay();
+          } catch (e: any) {
+            errors.push(`Listing error: ${e.message}`);
           }
-
-          console.log(
-            "Page " + pageNum + ": collected " + pageProperties.length
-          );
-
-          if (pageNum < this.config.maxPages!) await this.randomDelay();
-        } catch (pageError: any) {
-          const errorMsg =
-            "Error scraping page " + pageNum + ": " + pageError.message;
-          console.error(errorMsg);
-          errors.push(errorMsg);
         }
       }
 
       const endTime = new Date().toISOString();
-      const now = new Date();
-      const timestamp =
-        now.toISOString().replace(/[:.]/g, "-").split("T")[0] +
-        "_" +
-        now.toISOString().replace(/[:.]/g, "").split("T")[1].slice(0, 6);
-
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
       const dataDir = path.join(__dirname, "../../data/bronze");
-      if (!fs.existsSync(dataDir)) fs.mkdirSync(dataDir, { recursive: true });
-
-      const filePath = path.join(dataDir, "tayara_" + timestamp + ".json");
+      fs.mkdirSync(dataDir, { recursive: true });
+      const filePath = path.join(dataDir, `tayara_${ts}.json`);
       fs.writeFileSync(filePath, JSON.stringify(properties, null, 2));
-
-      console.log("Saved " + properties.length + " properties to " + filePath);
 
       return {
         source: "tayara",
@@ -304,21 +244,17 @@ export class TayaraScraper {
       };
     } catch (error: any) {
       const endTime = new Date().toISOString();
-      console.error("Fatal error in Tayara scraper:", error);
       return {
         source: "tayara",
         success: false,
         propertiesScraped: properties.length,
-        errors: [...errors, "Fatal error: " + error.message],
+        errors: [...errors, error.message],
         startTime,
         endTime,
         duration: new Date(endTime).getTime() - new Date(startTime).getTime(),
       };
     } finally {
-      if (this.browser) {
-        await this.browser.close();
-        console.log("Browser closed");
-      }
+      if (this.browser) await this.browser.close();
     }
   }
 }
