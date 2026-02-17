@@ -1,5 +1,5 @@
 /**
- * Tayara.tn scraper – hardened against timeouts & blocks
+ * Tayara.tn scraper – hardened against timeouts & blocks (with logs)
  */
 
 import puppeteer, { Browser, Page } from "puppeteer";
@@ -82,25 +82,35 @@ export class TayaraScraper {
   }
 
   private async safeGoto(page: Page, url: string) {
+    console.log(`🌍 Navigating: ${url}`);
     try {
       await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
+      console.log(`✅ Loaded (domcontentloaded)`);
     } catch {
+      console.warn(`⚠️ domcontentloaded failed, retrying with load...`);
       await page.goto(url, { waitUntil: "load", timeout: 25000 });
+      console.log(`✅ Loaded (load)`);
     }
   }
 
   private async collectListingUrls(page: Page, pageNum: number) {
     const url = `https://www.tayara.tn/ads/c/Immobilier?page=${pageNum}`;
+    console.log(`\n📄 Collecting listings from page ${pageNum}`);
 
     await this.safeGoto(page, url);
     await page.waitForSelector('a[href*="/item/"]', { timeout: 20000 });
 
-    return page.$$eval('a[href*="/item/"]', (els) => [
+    const urls = await page.$$eval('a[href*="/item/"]', (els) => [
       ...new Set(els.map((a) => (a as HTMLAnchorElement).href.split("?")[0])),
     ]);
+
+    console.log(`🔗 Found ${urls.length} listing URLs on page ${pageNum}`);
+    return urls;
   }
 
   private async scrapeListingDetails(page: Page, sourceUrl: string) {
+    console.log(`\n➡️ Scraping listing: ${sourceUrl}`);
+
     await this.safeGoto(page, sourceUrl);
     await page.waitForSelector("h1", { timeout: 20000 });
 
@@ -136,6 +146,12 @@ export class TayaraScraper {
     const bedrooms = this.parseBedrooms(mergedText);
     const price = this.parsePrice(extracted.price);
 
+    console.log(`🆔 ID: ${listingId}`);
+    console.log(`🏷️ Title: ${extracted.title}`);
+    console.log(`💰 Price parsed: ${price}`);
+    console.log(`📐 Size parsed: ${size}`);
+    console.log(`🛏 Bedrooms parsed: ${bedrooms}`);
+
     const property: ScrapedProperty = {
       source_url: this.normalizeUrl(sourceUrl),
       listing_id: listingId,
@@ -170,6 +186,8 @@ export class TayaraScraper {
     const seen = new Set<string>();
 
     try {
+      console.log("🚀 Starting Tayara scraper...\n");
+
       this.browser = await puppeteer.launch({
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -185,20 +203,26 @@ export class TayaraScraper {
           for (const url of urls) {
             try {
               const id = this.extractListingId(url);
-              if (seen.has(id)) continue;
+              if (seen.has(id)) {
+                console.log(`⏭️ Skipping duplicate: ${id}`);
+                continue;
+              }
 
               const property = await this.scrapeListingDetails(detailPage, url);
               properties.push(property);
               seen.add(id);
 
+              console.log(`✅ Saved: ${property.title}`);
               await this.delay(800);
             } catch (err: any) {
+              console.error(`❌ Listing failed: ${url}`);
               errors.push(`Listing failed ${url}: ${err.message}`);
             }
           }
 
           await this.randomDelay();
         } catch (err: any) {
+          console.error(`❌ Page ${pageNum} failed`);
           errors.push(`Page ${pageNum} failed: ${err.message}`);
         }
       }
@@ -214,6 +238,8 @@ export class TayaraScraper {
 
       fs.writeFileSync(filePath, JSON.stringify(properties, null, 2));
 
+      console.log(`\n💾 Saved ${properties.length} properties to ${filePath}`);
+
       const endTime = new Date().toISOString();
 
       return {
@@ -227,7 +253,10 @@ export class TayaraScraper {
         filePath,
       };
     } finally {
-      if (this.browser) await this.browser.close();
+      if (this.browser) {
+        await this.browser.close();
+        console.log("🧹 Browser closed");
+      }
     }
   }
 }
