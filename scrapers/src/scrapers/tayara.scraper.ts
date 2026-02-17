@@ -1,5 +1,5 @@
 /**
- * Tayara.tn scraper – hardened against timeouts & blocks (with logs)
+ * Tayara.tn scraper – hardened, logged, and fixed extraction
  */
 
 import puppeteer, { Browser, Page } from "puppeteer";
@@ -33,6 +33,10 @@ export class TayaraScraper {
     };
   }
 
+  private log(msg: string) {
+    console.log(`🟦 [TAYARA] ${msg}`);
+  }
+
   private async delay(ms: number) {
     return new Promise((r) => setTimeout(r, ms));
   }
@@ -57,9 +61,8 @@ export class TayaraScraper {
   private parsePrice(text?: string) {
     if (!text) return undefined;
     const digits = text.replace(/[^\d]/g, "");
-    if (!digits) return undefined;
     const n = Number(digits);
-    if (!Number.isFinite(n) || n <= 0 || n > 1_000_000_000) return undefined;
+    if (!Number.isFinite(n) || n <= 0) return undefined;
     return Math.floor(n);
   }
 
@@ -67,9 +70,7 @@ export class TayaraScraper {
     if (!text) return undefined;
     const m = text.match(/(\d{2,4})\s?(m²|m2)/i);
     if (!m) return undefined;
-    const n = Number(m[1]);
-    if (!Number.isFinite(n) || n <= 0 || n > 10000) return undefined;
-    return n;
+    return Number(m[1]);
   }
 
   private parseBedrooms(text?: string) {
@@ -82,37 +83,41 @@ export class TayaraScraper {
   }
 
   private async safeGoto(page: Page, url: string) {
-    console.log(`🌍 Navigating: ${url}`);
-    try {
-      await page.goto(url, { waitUntil: "domcontentloaded", timeout: 25000 });
-      console.log(`✅ Loaded (domcontentloaded)`);
-    } catch {
-      console.warn(`⚠️ domcontentloaded failed, retrying with load...`);
-      await page.goto(url, { waitUntil: "load", timeout: 25000 });
-      console.log(`✅ Loaded (load)`);
+    for (let i = 0; i < 3; i++) {
+      try {
+        await page.goto(url, {
+          waitUntil: "domcontentloaded",
+          timeout: 60000,
+        });
+        return;
+      } catch (err) {
+        this.log(`Retry ${i + 1}/3 for ${url}`);
+        await this.delay(3000);
+      }
     }
+    throw new Error(`Navigation failed after retries: ${url}`);
   }
 
   private async collectListingUrls(page: Page, pageNum: number) {
     const url = `https://www.tayara.tn/ads/c/Immobilier?page=${pageNum}`;
-    console.log(`\n📄 Collecting listings from page ${pageNum}`);
+    this.log(`Collecting URLs from page ${pageNum}: ${url}`);
 
     await this.safeGoto(page, url);
-    await page.waitForSelector('a[href*="/item/"]', { timeout: 20000 });
+    await page.waitForSelector('a[href*="/item/"]', { timeout: 30000 });
 
     const urls = await page.$$eval('a[href*="/item/"]', (els) => [
       ...new Set(els.map((a) => (a as HTMLAnchorElement).href.split("?")[0])),
     ]);
 
-    console.log(`🔗 Found ${urls.length} listing URLs on page ${pageNum}`);
+    this.log(`Found ${urls.length} listings on page ${pageNum}`);
     return urls;
   }
 
   private async scrapeListingDetails(page: Page, sourceUrl: string) {
-    console.log(`\n➡️ Scraping listing: ${sourceUrl}`);
+    this.log(`Scraping listing: ${sourceUrl}`);
 
     await this.safeGoto(page, sourceUrl);
-    await page.waitForSelector("h1", { timeout: 20000 });
+    await page.waitForSelector("h1", { timeout: 30000 });
 
     const extracted = await page.evaluate(() => {
       const title = document.querySelector("h1")?.textContent?.trim() || "";
@@ -126,6 +131,10 @@ export class TayaraScraper {
         document.querySelector('[class*="price"]')?.textContent ||
         "";
 
+      const attributes = Array.from(document.querySelectorAll("li"))
+        .map((li) => li.innerText)
+        .join(" ");
+
       const images = Array.from(document.querySelectorAll("img"))
         .map((i) => i.src)
         .filter((src) => src.includes("tayara.tn"));
@@ -134,35 +143,33 @@ export class TayaraScraper {
         title,
         description,
         price,
+        attributes,
         text: document.body.innerText,
         images,
       };
     });
 
     const listingId = this.extractListingId(sourceUrl);
-    const mergedText = `${extracted.title} ${extracted.description} ${extracted.text}`;
+    const mergedText = `${extracted.title} ${extracted.description} ${extracted.attributes} ${extracted.text}`;
 
     const size = this.parseSize(mergedText);
     const bedrooms = this.parseBedrooms(mergedText);
     const price = this.parsePrice(extracted.price);
 
-    console.log(`🆔 ID: ${listingId}`);
-    console.log(`🏷️ Title: ${extracted.title}`);
-    console.log(`💰 Price parsed: ${price}`);
-    console.log(`📐 Size parsed: ${size}`);
-    console.log(`🛏 Bedrooms parsed: ${bedrooms}`);
+    if (!mergedText.toLowerCase().includes("vente")) {
+      this.log(`Skipped non-sale listing ${listingId}`);
+      return null;
+    }
 
     const property: ScrapedProperty = {
       source_url: this.normalizeUrl(sourceUrl),
       listing_id: listingId,
       source_website: "tayara.tn",
       title: extracted.title || `Listing ${listingId}`,
-      description: extracted.description || "No description available",
+      description: extracted.description || "No description",
       price,
       property_type: "APARTMENT",
-      transaction_type: mergedText.toLowerCase().includes("louer")
-        ? "RENT"
-        : "SALE",
+      transaction_type: "SALE",
       governorate: "Unknown",
       delegation: "Unknown",
       neighborhood: undefined,
@@ -176,6 +183,10 @@ export class TayaraScraper {
       price_currency: "TND",
     };
 
+    this.log(
+      `Extracted: id=${listingId}, price=${price}, size=${size}, bedrooms=${bedrooms}`,
+    );
+
     return property;
   }
 
@@ -185,9 +196,9 @@ export class TayaraScraper {
     const properties: ScrapedProperty[] = [];
     const seen = new Set<string>();
 
-    try {
-      console.log("🚀 Starting Tayara scraper...\n");
+    this.log("Launching browser...");
 
+    try {
       this.browser = await puppeteer.launch({
         headless: true,
         args: ["--no-sandbox", "--disable-setuid-sandbox"],
@@ -195,6 +206,7 @@ export class TayaraScraper {
 
       const page = await this.browser.newPage();
       const detailPage = await this.browser.newPage();
+      await page.setUserAgent(this.config.userAgent!);
 
       for (let pageNum = 1; pageNum <= this.config.maxPages!; pageNum++) {
         try {
@@ -203,44 +215,36 @@ export class TayaraScraper {
           for (const url of urls) {
             try {
               const id = this.extractListingId(url);
-              if (seen.has(id)) {
-                console.log(`⏭️ Skipping duplicate: ${id}`);
-                continue;
-              }
+              if (seen.has(id)) continue;
 
               const property = await this.scrapeListingDetails(detailPage, url);
-              properties.push(property);
+              if (property) properties.push(property);
               seen.add(id);
 
-              console.log(`✅ Saved: ${property.title}`);
               await this.delay(800);
             } catch (err: any) {
-              console.error(`❌ Listing failed: ${url}`);
               errors.push(`Listing failed ${url}: ${err.message}`);
+              this.log(`❌ Listing failed: ${url}`);
             }
           }
 
           await this.randomDelay();
         } catch (err: any) {
-          console.error(`❌ Page ${pageNum} failed`);
           errors.push(`Page ${pageNum} failed: ${err.message}`);
+          this.log(`❌ Page ${pageNum} failed`);
         }
       }
 
-      const now = new Date();
       const outDir = path.join(__dirname, "../../data/bronze");
       fs.mkdirSync(outDir, { recursive: true });
 
       const filePath = path.join(
         outDir,
-        `tayara_${now.toISOString().replace(/[:.]/g, "-")}.json`,
+        `tayara_${new Date().toISOString().replace(/[:.]/g, "-")}.json`,
       );
 
       fs.writeFileSync(filePath, JSON.stringify(properties, null, 2));
-
-      console.log(`\n💾 Saved ${properties.length} properties to ${filePath}`);
-
-      const endTime = new Date().toISOString();
+      this.log(`Saved ${properties.length} properties → ${filePath}`);
 
       return {
         source: "tayara",
@@ -248,14 +252,14 @@ export class TayaraScraper {
         propertiesScraped: properties.length,
         errors,
         startTime,
-        endTime,
+        endTime: new Date().toISOString(),
         duration: Date.now() - new Date(startTime).getTime(),
         filePath,
       };
     } finally {
       if (this.browser) {
+        this.log("Closing browser...");
         await this.browser.close();
-        console.log("🧹 Browser closed");
       }
     }
   }
