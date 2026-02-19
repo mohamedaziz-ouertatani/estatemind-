@@ -1,3 +1,11 @@
+/**
+ * Tayara.tn scraper
+ *
+ * Strategy:
+ * 1) Crawl listing pages and collect item URLs
+ * 2) Open each detail page to extract high-quality fields
+ */
+
 import puppeteer, { Browser, Page } from "puppeteer";
 import fs from "fs";
 import path from "path";
@@ -13,10 +21,7 @@ const __dirname = path.dirname(__filename);
 
 function cleanText(html: string | null | undefined): string {
   if (!html) return "";
-  return html
-    .replace(/<[^>]+>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
 }
 
 // Parse price safely from string or <data value="">
@@ -27,7 +32,8 @@ function parsePriceFromHtml(html: string): number | undefined {
 
   // 2. Try visibly red span (may have "000 DT" split!)
   const priceMatch = html.match(/(\d{1,3})\D*(\d{3})\D*(DT|TND)/i);
-  if (priceMatch) return parseInt(priceMatch[1] + priceMatch[2], 10);
+  if (priceMatch)
+    return parseInt(priceMatch[1] + priceMatch[2], 10);
 
   // 3. Try JSON-LD if available
   const ldMatch = html.match(
@@ -48,7 +54,6 @@ function parsePriceFromHtml(html: string): number | undefined {
   return undefined;
 }
 
-// Extract main listing criteria from detail page HTML
 function parseCriteriaSection(html: string): {
   transaction_type?: string;
   size?: number;
@@ -68,26 +73,23 @@ function parseCriteriaSection(html: string): {
       crits.transaction_type = /vente|à vendre/i.test(value)
         ? "SALE"
         : /louer|à louer/i.test(value)
-          ? "RENT"
-          : value;
+        ? "RENT"
+        : value;
     }
     if (/superficie/.test(label)) crits.size = parseInt(value, 10) || undefined;
-    if (/bains?/.test(label))
-      crits.bathrooms = parseInt(value, 10) || undefined;
-    if (/chambres?/.test(label))
-      crits.bedrooms = parseInt(value, 10) || undefined;
+    if (/bains?/.test(label)) crits.bathrooms = parseInt(value, 10) || undefined;
+    if (/chambres?/.test(label)) crits.bedrooms = parseInt(value, 10) || undefined;
   }
   return crits;
 }
 
-// Extract geo/location (governorate, delegation, neighborhood) from the HTML (breadcrumb section)
 function parseLocationFromHtml(html: string): {
   governorate?: string;
   delegation?: string;
   neighborhood?: string;
 } {
   const breadcrumbMatches = Array.from(
-    html.matchAll(/<span>([^<]+)<\/span>/g),
+    html.matchAll(/<span>([^<]+)<\/span>/g)
   ).map((m) => m[1].trim());
   if (breadcrumbMatches.length > 3) {
     // Usually: [Type, Governorate, Delegation, Neighborhood, ...]
@@ -100,20 +102,18 @@ function parseLocationFromHtml(html: string): {
   return {};
 }
 
-// Filter property images (no loader/svg/logo, only mediaGateway ones)
 function filterPropertyImages(all: string[]): string[] {
   return all.filter(
     (src) =>
       src.includes("mediaGateway/resize-image") &&
-      !/logo|loader|svg/i.test(src),
+      !/logo|loader|svg/i.test(src)
   );
 }
 
-// Extract description text from HTML
 function parseDescription(html: string): string {
   // 1. Try description <span> or <div> under heading
   let m = html.match(
-    /<h2[^>]*>Description<\/h2>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i,
+    /<h2[^>]*>Description<\/h2>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i
   );
   if (m) return cleanText(m[1]);
   // 2. Try alt: anything after <h2>description
@@ -150,7 +150,7 @@ export class TayaraScraper {
   private randomDelay() {
     const ms =
       Math.floor(
-        Math.random() * (this.config.delayMax! - this.config.delayMin!),
+        Math.random() * (this.config.delayMax! - this.config.delayMin!)
       ) + this.config.delayMin!;
     return this.delay(ms);
   }
@@ -179,7 +179,7 @@ export class TayaraScraper {
         });
         await page.waitForSelector('a[href*="/item/"]', { timeout: 20000 });
         const links = await page.$$eval('a[href*="/item/"]', (as) =>
-          Array.from(new Set(as.map((a) => (a as HTMLAnchorElement).href))),
+          Array.from(new Set(as.map((a) => (a as HTMLAnchorElement).href)))
         );
         console.log(`Page ${pageNum}: ${links.length} unique links.`);
 
@@ -195,10 +195,8 @@ export class TayaraScraper {
             await detail.waitForSelector("h1", { timeout: 20000 });
 
             const html = await detail.content();
-            // Standard fields
-            const title = await detail.$eval(
-              "h1",
-              (el) => el.textContent?.trim() || "",
+            const title = await detail.$eval("h1", (el) =>
+              el.textContent?.trim() || ""
             );
 
             // Price extraction
@@ -215,11 +213,10 @@ export class TayaraScraper {
 
             // Images
             const allImages = await detail.$$eval("img", (imgs) =>
-              imgs.map((img) => img.src),
+              imgs.map((img) => img.src)
             );
             const images = filterPropertyImages(allImages);
 
-            // Compose property
             const prop: ScrapedProperty = {
               source_url: link.split("?")[0],
               listing_id: link.split("/").filter(Boolean).pop() || "",
@@ -257,16 +254,11 @@ export class TayaraScraper {
         __dirname,
         "../../data/bronze/tayara_" +
           now.toISOString().replace(/[:.]/g, "-") +
-          ".json",
+          ".json"
       );
       fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, JSON.stringify(properties, null, 2));
-      console.log(
-        "[Tayara] Finished. Saved",
-        properties.length,
-        "to",
-        filePath,
-      );
+      console.log("[Tayara] Finished. Saved", properties.length, "to", filePath);
 
       return {
         source: "tayara",

@@ -291,7 +291,6 @@ export class TunisieAnnonceScraper {
             let priceNum = undefined;
             if (typeof basicInfo.price === "string")
               priceNum = this.parsePrice(basicInfo.price);
-
             let listingDateISO: string | undefined = undefined;
             if (basicInfo.listing_date) {
               listingDateISO =
