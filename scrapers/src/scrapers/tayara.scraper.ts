@@ -19,6 +19,113 @@ import type {
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function cleanText(html: string | null | undefined): string {
+  if (!html) return "";
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// Parse price safely from string or <data value="">
+function parsePriceFromHtml(html: string): number | undefined {
+  // 1. Try <data value="...">
+  const dataMatch = html.match(/<data[^>]*value="(\d{4,9})"/);
+  if (dataMatch) return parseInt(dataMatch[1].replace(/\D/g, ""), 10);
+
+  // 2. Try visibly red span (may have "000 DT" split!)
+  const priceMatch = html.match(/(\d{1,3})\D*(\d{3})\D*(DT|TND)/i);
+  if (priceMatch)
+    return parseInt(priceMatch[1] + priceMatch[2], 10);
+
+  // 3. Try JSON-LD if available
+  const ldMatch = html.match(
+    /<script[^>]+type="application\/ld\+json"[^>]*?>([\s\S]*?)<\/script>/,
+  );
+  if (ldMatch) {
+    try {
+      const obj = JSON.parse(ldMatch[1]);
+      if (obj?.offers?.price) return Number(obj.offers.price);
+      if (obj?.price) return Number(obj.price);
+    } catch {}
+  }
+
+  // 4. Try “Prix de Vente : (\d+) MD” — multiply by 1000
+  const prixMD = html.match(/Prix de Vente\s*:\s*(\d{2,3})\s*MD/i);
+  if (prixMD) return parseInt(prixMD[1], 10) * 1000;
+
+  return undefined;
+}
+
+function parseCriteriaSection(html: string): {
+  transaction_type?: string;
+  size?: number;
+  bathrooms?: number;
+  bedrooms?: number;
+} {
+  const crits: any = {};
+  // Capture all: <span>Label</span><span>Value</span>
+  const regex = /<span[^>]*>([^<]+)<\/span>\s*<span[^>]*>([^<]+)<\/span>/g;
+  for (let m; (m = regex.exec(html)); ) {
+    const label = m[1].trim().toLowerCase();
+    let value = m[2].trim();
+    if (/superficie/.test(label)) value = value.replace(/\D/g, "");
+    if (/bains?/.test(label)) value = value.replace(/\D/g, "");
+    if (/chambres?/.test(label)) value = value.replace(/\D/g, "");
+    if (/type de transaction/.test(label)) {
+      crits.transaction_type = /vente|à vendre/i.test(value)
+        ? "SALE"
+        : /louer|à louer/i.test(value)
+        ? "RENT"
+        : value;
+    }
+    if (/superficie/.test(label)) crits.size = parseInt(value, 10) || undefined;
+    if (/bains?/.test(label)) crits.bathrooms = parseInt(value, 10) || undefined;
+    if (/chambres?/.test(label)) crits.bedrooms = parseInt(value, 10) || undefined;
+  }
+  return crits;
+}
+
+function parseLocationFromHtml(html: string): {
+  governorate?: string;
+  delegation?: string;
+  neighborhood?: string;
+} {
+  const breadcrumbMatches = Array.from(
+    html.matchAll(/<span>([^<]+)<\/span>/g)
+  ).map((m) => m[1].trim());
+  if (breadcrumbMatches.length > 3) {
+    // Usually: [Type, Governorate, Delegation, Neighborhood, ...]
+    return {
+      governorate: breadcrumbMatches[2] || undefined,
+      delegation: breadcrumbMatches[3] || undefined,
+      neighborhood: breadcrumbMatches[4] || breadcrumbMatches[3] || undefined,
+    };
+  }
+  return {};
+}
+
+function filterPropertyImages(all: string[]): string[] {
+  return all.filter(
+    (src) =>
+      src.includes("mediaGateway/resize-image") &&
+      !/logo|loader|svg/i.test(src)
+  );
+}
+
+function parseDescription(html: string): string {
+  // 1. Try description <span> or <div> under heading
+  let m = html.match(
+    /<h2[^>]*>Description<\/h2>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i
+  );
+  if (m) return cleanText(m[1]);
+  // 2. Try alt: anything after <h2>description
+  m = html.match(/<h2[^>]*>Description<\/h2>([\s\S]*?)(<button|<div)/i);
+  if (m) return cleanText(m[1]);
+  // 3. Fallback: first large <p>
+  m = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+  if (m) return cleanText(m[1]);
+  return "";
+}
+
+// --- MAIN SCRAPER ---
 export class TayaraScraper {
   private browser: Browser | null = null;
   private config: ScraperConfig;
@@ -357,17 +464,54 @@ export class TayaraScraper {
             await this.delay(700);
           }
 
-          if (pageNum < this.config.maxPages!) {
+            // Criteria extraction
+            const criteria = parseCriteriaSection(html);
+
+            // Location extraction (breadcrumb)
+            const loc = parseLocationFromHtml(html);
+
+            // Images
+            const allImages = await detail.$$eval("img", (imgs) =>
+              imgs.map((img) => img.src)
+            );
+            const images = filterPropertyImages(allImages);
+
+            const prop: ScrapedProperty = {
+              source_url: link.split("?")[0],
+              listing_id: link.split("/").filter(Boolean).pop() || "",
+              source_website: "tayara.tn",
+              title,
+              description: description || "",
+              price: price ?? undefined,
+              price_currency: "TND",
+              property_type: "APARTMENT", // (or parse from card for villa, terrain, etc)
+              transaction_type: criteria.transaction_type || "SALE",
+              governorate: loc.governorate || "Unknown",
+              delegation: loc.delegation || "Unknown",
+              neighborhood: loc.neighborhood || undefined,
+              size: criteria.size,
+              size_unit: criteria.size ? "m2" : undefined,
+              bedrooms: criteria.bedrooms,
+              bathrooms: criteria.bathrooms,
+              images,
+              scrape_timestamp: new Date().toISOString(),
+            };
+
+            properties.push(prop);
+            await detail.close();
             await this.randomDelay();
+          } catch (err: any) {
+            errors.push(`[Listing failed ${link}]: ${err.message}`);
+            continue;
           }
         } catch (pageError: any) {
           const errorMsg = `Error scraping page ${pageNum}: ${pageError.message}`;
           errors.push(errorMsg);
           console.error(errorMsg);
         }
+        await this.randomDelay();
       }
-
-      const endTime = new Date().toISOString();
+      // Save to file
       const now = new Date();
       const timestamp =
         now.toISOString().replace(/[:.]/g, '-').split('T')[0] +
@@ -390,8 +534,8 @@ export class TayaraScraper {
         propertiesScraped: properties.length,
         errors,
         startTime,
-        endTime,
-        duration: new Date(endTime).getTime() - new Date(startTime).getTime(),
+        endTime: new Date().toISOString(),
+        duration: Date.now() - Date.parse(startTime),
         filePath,
       };
     } catch (error: any) {
@@ -407,10 +551,7 @@ export class TayaraScraper {
         duration: new Date(endTime).getTime() - new Date(startTime).getTime(),
       };
     } finally {
-      if (this.browser) {
-        await this.browser.close();
-        console.log('Browser closed');
-      }
+      if (this.browser) await this.browser.close();
     }
   }
 }

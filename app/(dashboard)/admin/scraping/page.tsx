@@ -252,6 +252,51 @@ export default function ScrapingAdminPage() {
     }
   }
 
+
+  useEffect(() => {
+    if (!lastJobId || !realtimeData?.trackedJob?.result?.success) {
+      return;
+    }
+
+    if (realtimeData.trackedJob.id === pendingIngestionJobId) {
+      return;
+    }
+
+    if (realtimeData.trackedJob.id === lastJobId) {
+      setPendingIngestionJobId(lastJobId);
+    }
+  }, [lastJobId, pendingIngestionJobId, realtimeData]);
+
+  async function acceptAndIngest() {
+    if (!pendingIngestionJobId) {
+      return;
+    }
+
+    setIngestionLoading(true);
+    try {
+      const response = await fetch('/api/scrape/ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({ jobId: pendingIngestionJobId }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to ingest scraped data');
+      }
+
+      alert(`✅ Data ingested for job ${pendingIngestionJobId}`);
+      setPendingIngestionJobId(null);
+    } catch (error: any) {
+      alert(`❌ Ingestion failed: ${error.message}`);
+    } finally {
+      setIngestionLoading(false);
+    }
+  }
+
   return (
     <div className="max-w-7xl mx-auto">
       {/* Header */}
