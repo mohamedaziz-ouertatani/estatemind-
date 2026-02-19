@@ -122,18 +122,13 @@ export class TunisieAnnonceScraper {
           }
 
           if (label && label.startsWith("adresse")) {
-            address = value || null;
+            const nextTd = labelTd.nextElementSibling as HTMLElement | null;
+            address = nextTd?.textContent?.trim() || null;
           }
 
           if (label === "texte") {
-            description = value || null;
-          }
-
-          if (label && (label.includes("chambres") || label.includes("chambre"))) {
-            if (value) {
-              const m = value.replace(",", ".").match(/(\d+)/);
-              bedrooms = m ? parseInt(m[1]) : undefined;
-            }
+            const nextTd = labelTd.nextElementSibling as HTMLElement | null;
+            description = nextTd?.textContent?.trim() || null;
           }
         });
 
@@ -173,7 +168,6 @@ export class TunisieAnnonceScraper {
           description: description || undefined,
           images,
           contact_phone: contact_phone || undefined,
-          bedrooms,
         };
       });
 
@@ -214,7 +208,6 @@ export class TunisieAnnonceScraper {
           const pageProperties = await page.evaluate(() => {
             const results: any[] = [];
             const rows = document.querySelectorAll("tr.Tableau1, tr.Tableau2");
-
             rows.forEach((row) => {
               try {
                 const cells = row.querySelectorAll("td");
@@ -254,7 +247,6 @@ export class TunisieAnnonceScraper {
                   if (!idFromHref) return;
                   listing_id = idFromHref;
                 }
-
                 const priceCell = cells[9];
                 const priceString = priceCell.textContent || "";
 
@@ -293,8 +285,7 @@ export class TunisieAnnonceScraper {
               priceNum = this.parsePrice(basicInfo.price);
             let listingDateISO: string | undefined = undefined;
             if (basicInfo.listing_date) {
-              listingDateISO =
-                parseTunisieAnnonceDate(basicInfo.listing_date) || undefined;
+              listingDateISO = parseTunisieAnnonceDate(basicInfo.listing_date) || undefined;
             }
 
             const details = await this.scrapePropertyDetails(
@@ -309,7 +300,7 @@ export class TunisieAnnonceScraper {
               property_type: this.normalizePropertyType(
                 basicInfo.property_type
               ),
-              scrape_timestamp: new Date().toISOString(),
+              scrape_timestamp: timestamp,
               listing_date: listingDateISO ?? undefined,
               size: details?.size ?? undefined,
               address: details?.address ?? undefined,

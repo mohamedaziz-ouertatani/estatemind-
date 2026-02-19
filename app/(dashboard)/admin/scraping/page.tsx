@@ -45,6 +45,18 @@ type RealTimeResponse = {
   recentJobs: RealTimeJob[];
 };
 
+
+type ReconcileSummary = {
+  dryRun: boolean;
+  deleteMode: boolean;
+  scanned: number;
+  unchanged: number;
+  markedInactive: number;
+  markedSold: number;
+  deleted: number;
+  errors: number;
+};
+
 export default function ScrapingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('quick');
   const [loading, setLoading] = useState(false);
@@ -54,6 +66,8 @@ export default function ScrapingAdminPage() {
   const [autoRefresh, setAutoRefresh] = useState(true);
   const [pendingIngestionJobId, setPendingIngestionJobId] = useState<string | null>(null);
   const [ingestionLoading, setIngestionLoading] = useState(false);
+  const [reconcileLoading, setReconcileLoading] = useState(false);
+  const [reconcileSummary, setReconcileSummary] = useState<ReconcileSummary | null>(null);
 
   const API_KEY = process.env.NEXT_PUBLIC_SCRAPER_API_KEY;
 
@@ -163,6 +177,78 @@ export default function ScrapingAdminPage() {
       alert(`❌ Failed to check status: ${error.message}`);
     } finally {
       setLoading(false);
+    }
+  }
+
+
+  useEffect(() => {
+    if (!lastJobId || !realtimeData?.trackedJob?.result?.success) {
+      return;
+    }
+
+    if (realtimeData.trackedJob.id === pendingIngestionJobId) {
+      return;
+    }
+
+    if (realtimeData.trackedJob.id === lastJobId) {
+      setPendingIngestionJobId(lastJobId);
+    }
+  }, [lastJobId, pendingIngestionJobId, realtimeData]);
+
+  async function acceptAndIngest() {
+    if (!pendingIngestionJobId) {
+      return;
+    }
+
+    setIngestionLoading(true);
+    try {
+      const response = await fetch('/api/scrape/ingest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({ jobId: pendingIngestionJobId }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to ingest scraped data');
+      }
+
+      alert(`✅ Data ingested for job ${pendingIngestionJobId}`);
+      setPendingIngestionJobId(null);
+    } catch (error: any) {
+      alert(`❌ Ingestion failed: ${error.message}`);
+    } finally {
+      setIngestionLoading(false);
+    }
+  }
+
+
+  async function runSourceReconcile(dryRun: boolean) {
+    setReconcileLoading(true);
+    try {
+      const response = await fetch('/api/scrape/reconcile', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${API_KEY}`,
+        },
+        body: JSON.stringify({ dryRun, batchSize: 100 }),
+      });
+
+      const data = await response.json();
+      if (!data.success) {
+        throw new Error(data.error || 'Failed to run source reconciliation');
+      }
+
+      setReconcileSummary(data.summary);
+      alert(`✅ Source sync ${dryRun ? 'dry-run' : 'run'} completed`);
+    } catch (error: any) {
+      alert(`❌ Source sync failed: ${error.message}`);
+    } finally {
+      setReconcileLoading(false);
     }
   }
 
@@ -514,6 +600,46 @@ export default function ScrapingAdminPage() {
                 No tracked job yet. Trigger a scrape to monitor it in real-time.
               </p>
             )}
+
+
+            <div className="mt-6 border rounded-lg p-4 bg-indigo-50">
+              <div className="flex items-center justify-between gap-2 mb-3">
+                <div>
+                  <p className="font-semibold text-indigo-900">🤖 Source Sync Agent</p>
+                  <p className="text-xs text-indigo-800">
+                    Automatically detects deleted/sold source listings and updates local records.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => runSourceReconcile(true)}
+                    disabled={reconcileLoading}
+                  >
+                    {reconcileLoading ? '⏳ Running...' : 'Dry Run'}
+                  </Button>
+                  <Button
+                    onClick={() => runSourceReconcile(false)}
+                    disabled={reconcileLoading}
+                  >
+                    {reconcileLoading ? '⏳ Running...' : 'Run Sync Now'}
+                  </Button>
+                </div>
+              </div>
+
+              {reconcileSummary && (
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
+                  <div className="border rounded bg-white p-2">Scanned: {reconcileSummary.scanned}</div>
+                  <div className="border rounded bg-white p-2">Unchanged: {reconcileSummary.unchanged}</div>
+                  <div className="border rounded bg-white p-2">Inactive: {reconcileSummary.markedInactive}</div>
+                  <div className="border rounded bg-white p-2">Sold: {reconcileSummary.markedSold}</div>
+                  <div className="border rounded bg-white p-2">Deleted: {reconcileSummary.deleted}</div>
+                  <div className="border rounded bg-white p-2">Errors: {reconcileSummary.errors}</div>
+                  <div className="border rounded bg-white p-2">Dry Run: {reconcileSummary.dryRun ? 'Yes' : 'No'}</div>
+                  <div className="border rounded bg-white p-2">Delete Mode: {reconcileSummary.deleteMode ? 'On' : 'Off'}</div>
+                </div>
+              )}
+            </div>
 
             {realtimeData?.recentJobs?.length ? (
               <div className="mt-6">

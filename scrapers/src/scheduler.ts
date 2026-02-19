@@ -4,8 +4,13 @@
  */
 
 import cron from 'node-cron';
+import path from 'path';
+import { promisify } from 'util';
+import { exec } from 'child_process';
 import { addScrapeJob } from './queue.js';
 import type { ScrapeJobData } from './interfaces/scraper.interface.js';
+
+const execAsync = promisify(exec);
 
 // Timezone for Tunisia
 const TIMEZONE = 'Africa/Tunis';
@@ -13,6 +18,27 @@ const TIMEZONE = 'Africa/Tunis';
 console.log('🕐 Initializing scheduler...');
 console.log(`   Timezone: ${TIMEZONE}`);
 console.log(`   Current time: ${new Date().toLocaleString('en-US', { timeZone: TIMEZONE })}\n`);
+
+async function runSourceSyncAgent() {
+  const projectRoot = path.resolve(process.cwd(), '..');
+  const cmd = 'npm run source-sync -- --batch=100';
+
+  console.log(`\n🤖 Running scheduled SOURCE SYNC (${cmd})`);
+
+  const { stdout, stderr } = await execAsync(cmd, {
+    cwd: projectRoot,
+    env: process.env,
+    maxBuffer: 10 * 1024 * 1024,
+  });
+
+  if (stdout?.trim()) {
+    console.log(stdout.trim());
+  }
+
+  if (stderr?.trim()) {
+    console.warn(stderr.trim());
+  }
+}
 
 /**
  * Schedule 1: Full scrape - All 3 sources, 10 pages, daily at 2:00 AM
@@ -109,6 +135,21 @@ const premiumPropertiesJob = cron.schedule(
 
 console.log('✅ Schedule 4: Premium properties (Mubawab - major cities, 5 pages) - Every 4 hours');
 
+/**
+ * Schedule 5: Source reconciliation - sync statuses/deletions every 3 hours
+ */
+const sourceSyncJob = cron.schedule(
+  '30 */3 * * *',
+  async () => {
+    await runSourceSyncAgent();
+  },
+  {
+    timezone: TIMEZONE,
+  }
+);
+
+console.log('✅ Schedule 5: Source sync agent - Every 3 hours (:30)');
+
 console.log('\n' + '='.repeat(60));
 console.log('🚀 All schedules initialized successfully!');
 console.log('='.repeat(60) + '\n');
@@ -120,6 +161,7 @@ process.on('SIGTERM', () => {
   incrementalScrapeJob.stop();
   hotListingsJob.stop();
   premiumPropertiesJob.stop();
+  sourceSyncJob.stop();
   console.log('✅ All schedules stopped');
   process.exit(0);
 });
@@ -130,9 +172,16 @@ process.on('SIGINT', () => {
   incrementalScrapeJob.stop();
   hotListingsJob.stop();
   premiumPropertiesJob.stop();
+  sourceSyncJob.stop();
   console.log('✅ All schedules stopped');
   process.exit(0);
 });
 
 // Export for use in scheduler-service
-export { fullScrapeJob, incrementalScrapeJob, hotListingsJob, premiumPropertiesJob };
+export {
+  fullScrapeJob,
+  incrementalScrapeJob,
+  hotListingsJob,
+  premiumPropertiesJob,
+  sourceSyncJob,
+};
