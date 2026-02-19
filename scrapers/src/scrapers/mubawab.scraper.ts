@@ -130,6 +130,36 @@ export class MubawabScraper {
     return undefined;
   }
 
+  private parseCoordinates(text: string | undefined): { latitude?: number; longitude?: number } {
+    if (!text) {
+      return {};
+    }
+
+    const patterns = [
+      /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /[?&](?:q|query|ll|sll)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (!match) continue;
+
+      const latitude = parseFloat(match[1]);
+      const longitude = parseFloat(match[2]);
+      if (
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude) &&
+        Math.abs(latitude) <= 90 &&
+        Math.abs(longitude) <= 180
+      ) {
+        return { latitude, longitude };
+      }
+    }
+
+    return {};
+  }
+
   /**
    * FIXED: Filter out UI/banner images
    */
@@ -219,12 +249,23 @@ export class MubawabScraper {
           result.location = locationElement.textContent?.trim();
         }
 
+        result.coordinateHint = Array.from(
+          document.querySelectorAll('a[href], iframe[src], [data-lat], [data-lng], [data-lon]'),
+        )
+          .map((el) =>
+            el.getAttribute('href') ||
+            el.getAttribute('src') ||
+            `${el.getAttribute('data-lat') || ''},${el.getAttribute('data-lng') || el.getAttribute('data-lon') || ''}` ||
+            '',
+          )
+          .join(' ');
+
         // Extract phone if visible
         const phoneElement = document.querySelector(
           '[class*="phone"], [href^="tel:"]',
         );
         if (phoneElement) {
-          result.phone =
+          result.contact_phone =
             phoneElement.textContent?.trim() ||
             phoneElement.getAttribute("href")?.replace("tel:", "");
         }
@@ -266,6 +307,13 @@ export class MubawabScraper {
           }
         }
       }
+
+      const parsedCoordinates = this.parseCoordinates(
+        `${details.coordinateHint || ''} ${details.location || ''} ${details.allFeatures || ''}`,
+      );
+
+      if (parsedCoordinates.latitude !== undefined) details.latitude = parsedCoordinates.latitude;
+      if (parsedCoordinates.longitude !== undefined) details.longitude = parsedCoordinates.longitude;
 
       // Filter images
       if (details.images) {
@@ -317,16 +365,14 @@ export class MubawabScraper {
             // Extract listing URLs from page
             const listingUrls = await page.evaluate(() => {
               const urls: string[] = [];
-              const links = document.querySelectorAll(
-                'a[href*="/fr/"][href*="listing"]',
-              );
+              const links = document.querySelectorAll('a[href*="/fr/"]');
 
               links.forEach((link) => {
                 const href = link.getAttribute("href");
-                if (href && href.includes("/fr/") && href.match(/\/\d+$/)) {
-                  const fullUrl = href.startsWith("http")
+                if (href && href.includes("/fr/") && href.match(/\/\d+(?:\?.*)?$/)) {
+                  const fullUrl = (href.startsWith("http")
                     ? href
-                    : `https://www.mubawab.tn${href}`;
+                    : `https://www.mubawab.tn${href}`).split("?")[0];
                   urls.push(fullUrl);
                 }
               });
@@ -372,7 +418,9 @@ export class MubawabScraper {
                     images: details.images,
                     governorate: details.governorate,
                     delegation: details.delegation,
-                    phone: details.phone,
+                    latitude: details.latitude,
+                    longitude: details.longitude,
+                    contact_phone: details.contact_phone,
                     source_website: "mubawab.tn",
                     scrape_timestamp: timestamp,
                     price_currency: "TND",
@@ -414,7 +462,7 @@ export class MubawabScraper {
         "_" +
         now.toISOString().replace(/[:.]/g, "").split("T")[1].slice(0, 6);
 
-      const dataDir = path.join(__dirname, "../../../data/bronze");
+      const dataDir = path.join(__dirname, "../../data/bronze");
       if (!fs.existsSync(dataDir)) {
         fs.mkdirSync(dataDir, { recursive: true });
       }
