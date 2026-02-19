@@ -91,6 +91,41 @@ export class TunisieAnnonceScraper {
     return "UNKNOWN";
   }
 
+  private parseCoordinates(text: string | undefined): { latitude?: number; longitude?: number } {
+    if (!text) {
+      return {};
+    }
+
+    const patterns = [
+      /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /[?&](?:q|query|ll|sll)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (!match) continue;
+
+      const latitude = parseFloat(match[1]);
+      const longitude = parseFloat(match[2]);
+      if (
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude) &&
+        Math.abs(latitude) <= 90 &&
+        Math.abs(longitude) <= 180
+      ) {
+        return { latitude, longitude };
+      }
+    }
+
+    return {};
+  }
+
+  private extractIdFromLink(href: string): string {
+    const m = href.match(/cod_ann=(\d+)/);
+    return m ? m[1] : "";
+  }
+
   private async scrapePropertyDetails(
     page: Page,
     url: string
@@ -162,12 +197,24 @@ export class TunisieAnnonceScraper {
           contact_phone = cellLi?.textContent?.trim() || null;
         }
 
+        const coordinateHint = Array.from(
+          document.querySelectorAll('a[href], iframe[src], [data-lat], [data-lng], [data-lon]'),
+        )
+          .map((el) =>
+            el.getAttribute('href') ||
+            el.getAttribute('src') ||
+            `${el.getAttribute('data-lat') || ''},${el.getAttribute('data-lng') || el.getAttribute('data-lon') || ''}` ||
+            '',
+          )
+          .join(' ');
+
         return {
           size: surface ?? undefined,
           address: address || undefined,
           description: description || undefined,
           images,
           contact_phone: contact_phone || undefined,
+          coordinateHint,
         };
       });
 
@@ -293,6 +340,11 @@ export class TunisieAnnonceScraper {
               basicInfo.source_url
             );
 
+            const timestamp = new Date().toISOString();
+            const parsedCoordinates = this.parseCoordinates(
+              `${(details as any)?.coordinateHint || ''} ${details?.address || ''} ${details?.description || ''}`,
+            );
+
             const fullProperty: ScrapedProperty = {
               ...basicInfo,
               price: priceNum,
@@ -306,8 +358,9 @@ export class TunisieAnnonceScraper {
               address: details?.address ?? undefined,
               description: details?.description ?? undefined,
               images: details?.images ?? [],
-              contact_phone: details?.contact_phone,
-              bedrooms: details?.bedrooms,
+              contact_phone: details?.contact_phone ?? undefined,
+              latitude: parsedCoordinates.latitude,
+              longitude: parsedCoordinates.longitude,
             };
 
             const validation = validateProperty(fullProperty);

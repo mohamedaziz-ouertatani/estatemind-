@@ -251,6 +251,36 @@ export class TayaraScraper {
     return Math.round(parseFloat(m[1].replace(',', '.')));
   }
 
+  private parseCoordinates(text: string | undefined): { latitude?: number; longitude?: number } {
+    if (!text) {
+      return {};
+    }
+
+    const patterns = [
+      /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /[?&](?:q|query|ll|sll)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (!match) continue;
+
+      const latitude = parseFloat(match[1]);
+      const longitude = parseFloat(match[2]);
+      if (
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude) &&
+        Math.abs(latitude) <= 90 &&
+        Math.abs(longitude) <= 180
+      ) {
+        return { latitude, longitude };
+      }
+    }
+
+    return {};
+  }
+
   private parseBedrooms(text: string): number | undefined {
     const sPlus = text.match(/s\s*\+\s*(\d+)/i);
     if (sPlus) {
@@ -359,6 +389,15 @@ export class TayaraScraper {
         '[class*="phone"]',
       ]);
 
+      const coordinateHint = Array.from(document.querySelectorAll('a[href], iframe[src], [data-lat], [data-lng], [data-lon]'))
+        .map((el) =>
+          el.getAttribute('href') ||
+          el.getAttribute('src') ||
+          `${el.getAttribute('data-lat') || ''},${el.getAttribute('data-lng') || el.getAttribute('data-lon') || ''}` ||
+          '',
+        )
+        .join(' ');
+
       const images = Array.from(document.querySelectorAll('img'))
         .map((img) => img.getAttribute('src') || img.getAttribute('data-src') || '')
         .filter((src) => src.startsWith('http') && !src.toLowerCase().includes('logo'));
@@ -371,6 +410,7 @@ export class TayaraScraper {
         phoneText,
         allText,
         images: [...new Set(images)].slice(0, 10),
+        coordinateHint,
       };
     });
 
@@ -382,6 +422,9 @@ export class TayaraScraper {
     const urlLocationParts = fromUrlLocation;
     const parsedSize = this.parseSize(detailsText);
     const parsedBedrooms = this.parseBedrooms(detailsText);
+    const parsedCoordinates = this.parseCoordinates(
+      `${extracted.coordinateHint || ''} ${extracted.allText}`,
+    );
 
     const property: ScrapedProperty = {
       source_url: this.normalizeUrl(sourceUrl),
@@ -396,6 +439,8 @@ export class TayaraScraper {
       delegation: urlLocationParts.delegation,
       neighborhood: urlLocationParts.neighborhood,
       address: extracted.locationText,
+      latitude: parsedCoordinates.latitude,
+      longitude: parsedCoordinates.longitude,
       size: parsedSize,
       size_unit: parsedSize ? 'm2' : undefined,
       bedrooms: parsedBedrooms,
@@ -464,41 +509,7 @@ export class TayaraScraper {
             await this.delay(700);
           }
 
-            // Criteria extraction
-            const criteria = parseCriteriaSection(html);
-
-            // Location extraction (breadcrumb)
-            const loc = parseLocationFromHtml(html);
-
-            // Images
-            const allImages = await detail.$$eval("img", (imgs) =>
-              imgs.map((img) => img.src)
-            );
-            const images = filterPropertyImages(allImages);
-
-            const prop: ScrapedProperty = {
-              source_url: link.split("?")[0],
-              listing_id: link.split("/").filter(Boolean).pop() || "",
-              source_website: "tayara.tn",
-              title,
-              description: description || "",
-              price: price ?? undefined,
-              price_currency: "TND",
-              property_type: "APARTMENT", // (or parse from card for villa, terrain, etc)
-              transaction_type: criteria.transaction_type || "SALE",
-              governorate: loc.governorate || "Unknown",
-              delegation: loc.delegation || "Unknown",
-              neighborhood: loc.neighborhood || undefined,
-              size: criteria.size,
-              size_unit: criteria.size ? "m2" : undefined,
-              bedrooms: criteria.bedrooms,
-              bathrooms: criteria.bathrooms,
-              images,
-              scrape_timestamp: new Date().toISOString(),
-            };
-
-            properties.push(prop);
-            await detail.close();
+          if (pageNum < this.config.maxPages!) {
             await this.randomDelay();
           } catch (err: any) {
             errors.push(`[Listing failed ${link}]: ${err.message}`);

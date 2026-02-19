@@ -130,6 +130,36 @@ export class MubawabScraper {
     return undefined;
   }
 
+  private parseCoordinates(text: string | undefined): { latitude?: number; longitude?: number } {
+    if (!text) {
+      return {};
+    }
+
+    const patterns = [
+      /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /[?&](?:q|query|ll|sll)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (!match) continue;
+
+      const latitude = parseFloat(match[1]);
+      const longitude = parseFloat(match[2]);
+      if (
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude) &&
+        Math.abs(latitude) <= 90 &&
+        Math.abs(longitude) <= 180
+      ) {
+        return { latitude, longitude };
+      }
+    }
+
+    return {};
+  }
+
   /**
    * FIXED: Filter out UI/banner images
    */
@@ -219,6 +249,17 @@ export class MubawabScraper {
           result.location = locationElement.textContent?.trim();
         }
 
+        result.coordinateHint = Array.from(
+          document.querySelectorAll('a[href], iframe[src], [data-lat], [data-lng], [data-lon]'),
+        )
+          .map((el) =>
+            el.getAttribute('href') ||
+            el.getAttribute('src') ||
+            `${el.getAttribute('data-lat') || ''},${el.getAttribute('data-lng') || el.getAttribute('data-lon') || ''}` ||
+            '',
+          )
+          .join(' ');
+
         // Extract phone if visible
         const phoneElement = document.querySelector(
           '[class*="phone"], [href^="tel:"]',
@@ -266,6 +307,13 @@ export class MubawabScraper {
           }
         }
       }
+
+      const parsedCoordinates = this.parseCoordinates(
+        `${details.coordinateHint || ''} ${details.location || ''} ${details.allFeatures || ''}`,
+      );
+
+      if (parsedCoordinates.latitude !== undefined) details.latitude = parsedCoordinates.latitude;
+      if (parsedCoordinates.longitude !== undefined) details.longitude = parsedCoordinates.longitude;
 
       // Filter images
       if (details.images) {
@@ -370,6 +418,8 @@ export class MubawabScraper {
                     images: details.images,
                     governorate: details.governorate,
                     delegation: details.delegation,
+                    latitude: details.latitude,
+                    longitude: details.longitude,
                     contact_phone: details.contact_phone,
                     source_website: "mubawab.tn",
                     scrape_timestamp: timestamp,
