@@ -57,6 +57,16 @@ type ReconcileSummary = {
   errors: number;
 };
 
+type AutomationSchedule = {
+  id: string;
+  name: string;
+  cron: string;
+  description: string;
+  timezone: string;
+  nextRun: string;
+  msUntilNextRun: number;
+};
+
 export default function ScrapingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('quick');
   const [loading, setLoading] = useState(false);
@@ -68,6 +78,8 @@ export default function ScrapingAdminPage() {
   const [ingestionLoading, setIngestionLoading] = useState(false);
   const [reconcileLoading, setReconcileLoading] = useState(false);
   const [reconcileSummary, setReconcileSummary] = useState<ReconcileSummary | null>(null);
+  const [automationSchedules, setAutomationSchedules] = useState<AutomationSchedule[]>([]);
+  const [scheduleNow, setScheduleNow] = useState(Date.now());
 
   const API_KEY = process.env.NEXT_PUBLIC_SCRAPER_API_KEY;
 
@@ -251,6 +263,60 @@ export default function ScrapingAdminPage() {
       setReconcileLoading(false);
     }
   }
+
+
+  function formatRemainingTime(ms: number) {
+    if (ms <= 0) {
+      return 'now';
+    }
+
+    const totalSeconds = Math.floor(ms / 1000);
+    const hours = Math.floor(totalSeconds / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+
+    if (hours > 0) {
+      return `${hours}h ${minutes}m`;
+    }
+    if (minutes > 0) {
+      return `${minutes}m ${seconds}s`;
+    }
+    return `${seconds}s`;
+  }
+
+  async function fetchSchedules() {
+    const response = await fetch('/api/scrape/schedules', { cache: 'no-store' });
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Failed to fetch schedules');
+    }
+    setAutomationSchedules(data.schedules || []);
+  }
+
+  useEffect(() => {
+    if (activeTab !== 'monitor') {
+      return;
+    }
+
+    fetchSchedules().catch((error) => {
+      console.error('Failed to fetch schedules:', error);
+    });
+
+    const schedulesInterval = window.setInterval(() => {
+      setScheduleNow(Date.now());
+    }, 1000);
+
+    const refreshInterval = window.setInterval(() => {
+      fetchSchedules().catch((error) => {
+        console.error('Failed to fetch schedules:', error);
+      });
+    }, 30000);
+
+    return () => {
+      window.clearInterval(schedulesInterval);
+      window.clearInterval(refreshInterval);
+    };
+  }, [activeTab]);
 
   return (
     <div className="max-w-7xl mx-auto">
@@ -596,6 +662,44 @@ export default function ScrapingAdminPage() {
               )}
             </div>
 
+
+            <div className="mt-6 border rounded-lg p-4 bg-slate-50">
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <p className="font-semibold text-slate-900">⏱️ Automation Scheduler</p>
+                  <p className="text-xs text-slate-700">
+                    Upcoming automated jobs for scrape, source sync, and ingestion.
+                  </p>
+                </div>
+              </div>
+
+              {automationSchedules.length > 0 ? (
+                <div className="space-y-2">
+                  {automationSchedules.map((schedule) => {
+                    const msUntil = new Date(schedule.nextRun).getTime() - scheduleNow;
+                    return (
+                      <div key={schedule.id} className="border rounded bg-white p-3 text-sm">
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1">
+                          <p className="font-medium">{schedule.name}</p>
+                          <p className="text-slate-600">
+                            Next run in <span className="font-semibold">{formatRemainingTime(msUntil)}</span>
+                          </p>
+                        </div>
+                        <p className="text-slate-600 mt-1">
+                          {schedule.description} • Cron: <span className="font-mono">{schedule.cron}</span>
+                        </p>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Next at {new Date(schedule.nextRun).toLocaleString()} ({schedule.timezone})
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p className="text-sm text-slate-500">No schedules available.</p>
+              )}
+            </div>
+
             {realtimeData?.recentJobs?.length ? (
               <div className="mt-6">
                 <p className="text-sm text-gray-600 mb-2">Recent Queue Activity</p>
@@ -630,7 +734,7 @@ export default function ScrapingAdminPage() {
           <li>• Jobs are queued and processed by background workers</li>
           <li>• Scraped data is automatically ingested into the database</li>
           <li>
-            • Scheduled jobs run automatically (every 2-6 hours depending on type)
+            • Scheduled jobs include scraping, source-sync reconciliation, and auto-ingestion
           </li>
         </ul>
       </Card>

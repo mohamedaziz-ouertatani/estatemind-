@@ -1,6 +1,6 @@
 /**
  * Scheduler with Cron Jobs
- * Schedules automated scraping tasks
+ * Schedules automated scraping and maintenance tasks.
  */
 
 import cron from 'node-cron';
@@ -19,13 +19,12 @@ console.log('🕐 Initializing scheduler...');
 console.log(`   Timezone: ${TIMEZONE}`);
 console.log(`   Current time: ${new Date().toLocaleString('en-US', { timeZone: TIMEZONE })}\n`);
 
-async function runSourceSyncAgent() {
+async function runProjectScript(command: string, label: string): Promise<void> {
   const projectRoot = path.resolve(process.cwd(), '..');
-  const cmd = 'npm run source-sync -- --batch=100';
 
-  console.log(`\n🤖 Running scheduled SOURCE SYNC (${cmd})`);
+  console.log(`\n🤖 Running scheduled ${label} (${command})`);
 
-  const { stdout, stderr } = await execAsync(cmd, {
+  const { stdout, stderr } = await execAsync(command, {
     cwd: projectRoot,
     env: process.env,
     maxBuffer: 10 * 1024 * 1024,
@@ -58,9 +57,8 @@ const fullScrapeJob = cron.schedule(
   },
   {
     timezone: TIMEZONE,
-  }
+  },
 );
-
 console.log('✅ Schedule 1: Full scrape (all sources, 10 pages) - Daily at 2:00 AM');
 
 /**
@@ -81,9 +79,8 @@ const incrementalScrapeJob = cron.schedule(
   },
   {
     timezone: TIMEZONE,
-  }
+  },
 );
-
 console.log('✅ Schedule 2: Incremental scrape (all sources, 3 pages) - Every 6 hours');
 
 /**
@@ -105,9 +102,8 @@ const hotListingsJob = cron.schedule(
   },
   {
     timezone: TIMEZONE,
-  }
+  },
 );
-
 console.log('✅ Schedule 3: Hot listings (Tayara - Tunis area, 3 pages) - Every 2 hours');
 
 /**
@@ -130,9 +126,8 @@ const premiumPropertiesJob = cron.schedule(
   },
   {
     timezone: TIMEZONE,
-  }
+  },
 );
-
 console.log('✅ Schedule 4: Premium properties (Mubawab - major cities, 5 pages) - Every 4 hours');
 
 /**
@@ -141,14 +136,27 @@ console.log('✅ Schedule 4: Premium properties (Mubawab - major cities, 5 pages
 const sourceSyncJob = cron.schedule(
   '30 */3 * * *',
   async () => {
-    await runSourceSyncAgent();
+    await runProjectScript('npm run source-sync -- --batch=100', 'SOURCE SYNC');
   },
   {
     timezone: TIMEZONE,
-  }
+  },
 );
-
 console.log('✅ Schedule 5: Source sync agent - Every 3 hours (:30)');
+
+/**
+ * Schedule 6: Auto ingestion - every 6 hours after scrape windows
+ */
+const autoIngestionJob = cron.schedule(
+  '45 */6 * * *',
+  async () => {
+    await runProjectScript('npm run ingest', 'AUTO INGESTION');
+  },
+  {
+    timezone: TIMEZONE,
+  },
+);
+console.log('✅ Schedule 6: Auto ingestion - Every 6 hours (:45)');
 
 console.log('\n' + '='.repeat(60));
 console.log('🚀 All schedules initialized successfully!');
@@ -162,6 +170,7 @@ process.on('SIGTERM', () => {
   hotListingsJob.stop();
   premiumPropertiesJob.stop();
   sourceSyncJob.stop();
+  autoIngestionJob.stop();
   console.log('✅ All schedules stopped');
   process.exit(0);
 });
@@ -173,6 +182,7 @@ process.on('SIGINT', () => {
   hotListingsJob.stop();
   premiumPropertiesJob.stop();
   sourceSyncJob.stop();
+  autoIngestionJob.stop();
   console.log('✅ All schedules stopped');
   process.exit(0);
 });
@@ -184,4 +194,5 @@ export {
   hotListingsJob,
   premiumPropertiesJob,
   sourceSyncJob,
+  autoIngestionJob,
 };
