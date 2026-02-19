@@ -14,7 +14,10 @@
     "scrape": "cd scrapers && npm run scrape:all",
     "scheduler": "cd scrapers && npm run scheduler",
     "watch-ingest": "tsx scripts/auto-ingest.ts",
-    "scrape:watch": "concurrently \"npm run scheduler\" \"npm run watch-ingest\""
+    "scrape:watch": "concurrently \"npm run scheduler\" \"npm run watch-ingest\" \"npm run source-sync:daemon\"",
+    "source-sync": "tsx scripts/source-sync-agent.ts",
+    "source-sync:dry": "tsx scripts/source-sync-agent.ts --dry-run",
+    "source-sync:daemon": "tsx scripts/source-sync-daemon.ts"
   },
   "prisma": {
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
