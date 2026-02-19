@@ -4,7 +4,7 @@ async function run() {
   console.log("🚀 Starting Tayara scraper...\n");
 
   const scraper = new TayaraScraper({
-    maxPages: 5,
+    maxPages: 2,
     delayMin: 2000,
     delayMax: 5000,
   });

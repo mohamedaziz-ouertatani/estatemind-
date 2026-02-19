@@ -6,411 +6,272 @@
  * 2) Open each detail page to extract high-quality fields
  */
 
-import puppeteer, { Browser, Page } from 'puppeteer';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import puppeteer, { Browser, Page } from "puppeteer";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
 import type {
   ScraperConfig,
   ScrapedProperty,
   ScrapeResult,
-} from '../interfaces/scraper.interface.js';
+} from "../interfaces/scraper.interface.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+function cleanText(html: string | null | undefined): string {
+  if (!html) return "";
+  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+}
+
+// Parse price safely from string or <data value="">
+function parsePriceFromHtml(html: string): number | undefined {
+  // 1. Try <data value="...">
+  const dataMatch = html.match(/<data[^>]*value="(\d{4,9})"/);
+  if (dataMatch) return parseInt(dataMatch[1].replace(/\D/g, ""), 10);
+
+  // 2. Try visibly red span (may have "000 DT" split!)
+  const priceMatch = html.match(/(\d{1,3})\D*(\d{3})\D*(DT|TND)/i);
+  if (priceMatch)
+    return parseInt(priceMatch[1] + priceMatch[2], 10);
+
+  // 3. Try JSON-LD if available
+  const ldMatch = html.match(
+    /<script[^>]+type="application\/ld\+json"[^>]*?>([\s\S]*?)<\/script>/,
+  );
+  if (ldMatch) {
+    try {
+      const obj = JSON.parse(ldMatch[1]);
+      if (obj?.offers?.price) return Number(obj.offers.price);
+      if (obj?.price) return Number(obj.price);
+    } catch {}
+  }
+
+  // 4. Try “Prix de Vente : (\d+) MD” — multiply by 1000
+  const prixMD = html.match(/Prix de Vente\s*:\s*(\d{2,3})\s*MD/i);
+  if (prixMD) return parseInt(prixMD[1], 10) * 1000;
+
+  return undefined;
+}
+
+function parseCriteriaSection(html: string): {
+  transaction_type?: string;
+  size?: number;
+  bathrooms?: number;
+  bedrooms?: number;
+} {
+  const crits: any = {};
+  // Capture all: <span>Label</span><span>Value</span>
+  const regex = /<span[^>]*>([^<]+)<\/span>\s*<span[^>]*>([^<]+)<\/span>/g;
+  for (let m; (m = regex.exec(html)); ) {
+    const label = m[1].trim().toLowerCase();
+    let value = m[2].trim();
+    if (/superficie/.test(label)) value = value.replace(/\D/g, "");
+    if (/bains?/.test(label)) value = value.replace(/\D/g, "");
+    if (/chambres?/.test(label)) value = value.replace(/\D/g, "");
+    if (/type de transaction/.test(label)) {
+      crits.transaction_type = /vente|à vendre/i.test(value)
+        ? "SALE"
+        : /louer|à louer/i.test(value)
+        ? "RENT"
+        : value;
+    }
+    if (/superficie/.test(label)) crits.size = parseInt(value, 10) || undefined;
+    if (/bains?/.test(label)) crits.bathrooms = parseInt(value, 10) || undefined;
+    if (/chambres?/.test(label)) crits.bedrooms = parseInt(value, 10) || undefined;
+  }
+  return crits;
+}
+
+function parseLocationFromHtml(html: string): {
+  governorate?: string;
+  delegation?: string;
+  neighborhood?: string;
+} {
+  const breadcrumbMatches = Array.from(
+    html.matchAll(/<span>([^<]+)<\/span>/g)
+  ).map((m) => m[1].trim());
+  if (breadcrumbMatches.length > 3) {
+    // Usually: [Type, Governorate, Delegation, Neighborhood, ...]
+    return {
+      governorate: breadcrumbMatches[2] || undefined,
+      delegation: breadcrumbMatches[3] || undefined,
+      neighborhood: breadcrumbMatches[4] || breadcrumbMatches[3] || undefined,
+    };
+  }
+  return {};
+}
+
+function filterPropertyImages(all: string[]): string[] {
+  return all.filter(
+    (src) =>
+      src.includes("mediaGateway/resize-image") &&
+      !/logo|loader|svg/i.test(src)
+  );
+}
+
+function parseDescription(html: string): string {
+  // 1. Try description <span> or <div> under heading
+  let m = html.match(
+    /<h2[^>]*>Description<\/h2>[\s\S]*?<p[^>]*>([\s\S]*?)<\/p>/i
+  );
+  if (m) return cleanText(m[1]);
+  // 2. Try alt: anything after <h2>description
+  m = html.match(/<h2[^>]*>Description<\/h2>([\s\S]*?)(<button|<div)/i);
+  if (m) return cleanText(m[1]);
+  // 3. Fallback: first large <p>
+  m = html.match(/<p[^>]*>([\s\S]*?)<\/p>/i);
+  if (m) return cleanText(m[1]);
+  return "";
+}
+
+// --- MAIN SCRAPER ---
 export class TayaraScraper {
   private browser: Browser | null = null;
   private config: ScraperConfig;
 
   constructor(config: Partial<ScraperConfig> = {}) {
     this.config = {
-      source: 'tayara',
-      maxPages: config.maxPages || 5,
-      delayMin: config.delayMin || 2000,
-      delayMax: config.delayMax || 5000,
+      source: "tayara",
+      maxPages: config.maxPages || 3,
+      delayMin: config.delayMin || 1800,
+      delayMax: config.delayMax || 3500,
       userAgent:
         config.userAgent ||
-        'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
       governorates: config.governorates,
       propertyTypes: config.propertyTypes,
     };
   }
 
-  private async delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
+  private async delay(ms: number) {
+    return new Promise((r) => setTimeout(r, ms));
   }
-
-  private randomDelay(): Promise<void> {
-    const delay =
+  private randomDelay() {
+    const ms =
       Math.floor(
-        Math.random() * (this.config.delayMax! - this.config.delayMin!),
+        Math.random() * (this.config.delayMax! - this.config.delayMin!)
       ) + this.config.delayMin!;
-    return this.delay(delay);
-  }
-
-  private normalizeUrl(url: string): string {
-    return (url || '').split('?')[0].replace(/\/$/, '');
-  }
-
-  private extractListingId(url: string): string {
-    const clean = this.normalizeUrl(url);
-    const segments = clean.split('/').filter(Boolean);
-
-    for (const segment of [...segments].reverse()) {
-      if (/^[a-f0-9]{24}$/i.test(segment)) {
-        return segment;
-      }
-    }
-
-    for (const segment of [...segments].reverse()) {
-      const digits = segment.match(/(\d{6,})/);
-      if (digits) {
-        return digits[1];
-      }
-    }
-
-    return segments[segments.length - 1] || clean;
-  }
-
-  private propertyTypeFromUrl(url: string): string {
-    const lower = url.toLowerCase();
-    if (lower.includes('/terrains-et-fermes/')) return 'LAND';
-    if (lower.includes('/maisons-et-villas/')) return 'HOUSE';
-    if (lower.includes('/appartements/')) return 'APARTMENT';
-    if (lower.includes('/bureaux-et-commerces/')) return 'COMMERCIAL';
-    return 'APARTMENT';
-  }
-
-  private transactionTypeFromUrl(url: string, title?: string): string {
-    const lower = `${url} ${title || ''}`.toLowerCase();
-    if (
-      lower.includes('location') ||
-      lower.includes('louer') ||
-      lower.includes('à louer') ||
-      lower.includes('a-louer')
-    ) {
-      return 'RENT';
-    }
-    return 'SALE';
-  }
-
-  private locationFromUrl(url: string): {
-    governorate?: string;
-    delegation?: string;
-    neighborhood?: string;
-  } {
-    try {
-      const pathname = new URL(url).pathname;
-      const parts = pathname.split('/').filter(Boolean);
-      const itemIndex = parts.findIndex((p) => p === 'item');
-
-      if (itemIndex === -1) {
-        return {};
-      }
-
-      // /item/{category}/{governorate}/{delegation}/{title}/{id}
-      const governorate = parts[itemIndex + 2];
-      const delegation = parts[itemIndex + 3];
-      const neighborhood = delegation;
-
-      return {
-        governorate: governorate
-          ? governorate.replace(/-/g, ' ').trim()
-          : undefined,
-        delegation: delegation ? delegation.replace(/-/g, ' ').trim() : undefined,
-        neighborhood: neighborhood
-          ? neighborhood.replace(/-/g, ' ').trim()
-          : undefined,
-      };
-    } catch {
-      return {};
-    }
-  }
-
-  private parsePrice(value: string | null | undefined): number | undefined {
-    if (!value) return undefined;
-    const match = value.replace(/\u00a0/g, ' ').match(/([\d\s.,]{3,})/);
-    if (!match) return undefined;
-    const parsed = parseInt(match[1].replace(/[\s.,]/g, ''), 10);
-    if (!Number.isFinite(parsed) || parsed <= 0) return undefined;
-    return parsed;
-  }
-
-  private parseSize(value: string | null | undefined): number | undefined {
-    if (!value) return undefined;
-    const m = value.match(/(\d+(?:[.,]\d+)?)\s*m(?:²|2)?/i);
-    if (!m) return undefined;
-    return Math.round(parseFloat(m[1].replace(',', '.')));
-  }
-
-  private parseBedrooms(text: string): number | undefined {
-    const sPlus = text.match(/s\s*\+\s*(\d+)/i);
-    if (sPlus) {
-      return parseInt(sPlus[1], 10);
-    }
-
-    const chambres = text.match(/(\d+)\s*chambres?/i);
-    if (chambres) {
-      return parseInt(chambres[1], 10);
-    }
-
-    return undefined;
-  }
-
-  private async collectListingUrls(page: Page, pageNum: number): Promise<string[]> {
-    const urls = [
-      `https://www.tayara.tn/ads/c/Immobilier?page=${pageNum}`,
-      `https://www.tayara.tn/ads/c/immobilier?page=${pageNum}`,
-      `https://www.tayara.tn/ads/c/Immobilier?o=${pageNum}`,
-    ];
-
-    let loaded = false;
-    for (const url of urls) {
-      await page.goto(url, { waitUntil: 'networkidle2', timeout: 30000 });
-      const hasListings = await page.evaluate(() =>
-        Boolean(document.querySelector('a[href*="/item/"]')),
-      );
-
-      if (hasListings) {
-        loaded = true;
-        break;
-      }
-    }
-
-    if (!loaded) {
-      throw new Error('No listing links found on Tayara results page');
-    }
-
-    const listingUrls = await page.evaluate(() => {
-      const anchors = Array.from(
-        document.querySelectorAll('a[href*="/item/"]'),
-      ) as HTMLAnchorElement[];
-
-      const urls = anchors
-        .map((a) => a.href || a.getAttribute('href') || '')
-        .filter((href) => href.includes('/item/'))
-        .map((href) =>
-          (href.startsWith('http') ? href : `https://www.tayara.tn${href}`)
-            .split('?')[0]
-            .replace(/\/$/, ''),
-        );
-
-      return [...new Set(urls)];
-    });
-
-    return listingUrls;
-  }
-
-  private async scrapeListingDetails(
-    page: Page,
-    sourceUrl: string,
-  ): Promise<ScrapedProperty | null> {
-    await page.goto(sourceUrl, { waitUntil: 'networkidle2', timeout: 30000 });
-    await this.delay(1200);
-
-    const extracted = await page.evaluate(() => {
-      const textFromSelectors = (selectors: string[]): string | undefined => {
-        for (const selector of selectors) {
-          const el = document.querySelector(selector);
-          const text = el?.textContent?.trim();
-          if (text) {
-            return text;
-          }
-        }
-        return undefined;
-      };
-
-      const allText = (document.body?.innerText || '').replace(/\s+/g, ' ').trim();
-
-      const title = textFromSelectors([
-        'h1',
-        '[data-testid*="title"]',
-        '[class*="title"]',
-      ]);
-
-      const description = textFromSelectors([
-        '[class*="description"]',
-        '[data-testid*="description"]',
-        'section p',
-      ]);
-
-      const priceText = textFromSelectors([
-        '[class*="price"]',
-        '[data-testid*="price"]',
-        'h2',
-      ]);
-
-      const locationText = textFromSelectors([
-        '[class*="location"]',
-        '[class*="address"]',
-        '[data-testid*="location"]',
-      ]);
-
-      const phoneText = textFromSelectors([
-        '[href^="tel:"]',
-        '[class*="phone"]',
-      ]);
-
-      const images = Array.from(document.querySelectorAll('img'))
-        .map((img) => img.getAttribute('src') || img.getAttribute('data-src') || '')
-        .filter((src) => src.startsWith('http') && !src.toLowerCase().includes('logo'));
-
-      return {
-        title,
-        description,
-        priceText,
-        locationText,
-        phoneText,
-        allText,
-        images: [...new Set(images)].slice(0, 10),
-      };
-    });
-
-    const listingId = this.extractListingId(sourceUrl);
-    const fromUrlLocation = this.locationFromUrl(sourceUrl);
-    const title = extracted.title || `Listing ${listingId}`;
-    const detailsText = `${extracted.allText} ${extracted.description || ''} ${title}`;
-
-    const urlLocationParts = fromUrlLocation;
-    const parsedSize = this.parseSize(detailsText);
-    const parsedBedrooms = this.parseBedrooms(detailsText);
-
-    const property: ScrapedProperty = {
-      source_url: this.normalizeUrl(sourceUrl),
-      listing_id: listingId,
-      source_website: 'tayara.tn',
-      title,
-      description: extracted.description,
-      price: this.parsePrice(extracted.priceText || extracted.allText),
-      property_type: this.propertyTypeFromUrl(sourceUrl),
-      transaction_type: this.transactionTypeFromUrl(sourceUrl, title),
-      governorate: urlLocationParts.governorate,
-      delegation: urlLocationParts.delegation,
-      neighborhood: urlLocationParts.neighborhood,
-      address: extracted.locationText,
-      size: parsedSize,
-      size_unit: parsedSize ? 'm2' : undefined,
-      bedrooms: parsedBedrooms,
-      images: extracted.images,
-      contact_phone: extracted.phoneText,
-      scrape_timestamp: new Date().toISOString(),
-      price_currency: 'TND',
-    };
-
-    if (!property.source_url || !property.listing_id || !property.title) {
-      return null;
-    }
-
-    return property;
+    return this.delay(ms);
   }
 
   async scrape(): Promise<ScrapeResult> {
     const startTime = new Date().toISOString();
     const errors: string[] = [];
     const properties: ScrapedProperty[] = [];
-    const seenIds = new Set<string>();
+
+    console.log("Launching browser...");
+    this.browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
 
     try {
-      console.log('Starting Tayara scraper...');
-
-      this.browser = await puppeteer.launch({
-        headless: true,
-        args: ['--no-sandbox', '--disable-setuid-sandbox'],
-      });
-
-      const listPage = await this.browser.newPage();
-      const detailPage = await this.browser.newPage();
-
-      await listPage.setUserAgent(this.config.userAgent!);
-      await detailPage.setUserAgent(this.config.userAgent!);
-      await listPage.setViewport({ width: 1920, height: 1080 });
-      await detailPage.setViewport({ width: 1920, height: 1080 });
+      const page = await this.browser.newPage();
+      await page.setUserAgent(this.config.userAgent!);
 
       for (let pageNum = 1; pageNum <= this.config.maxPages!; pageNum++) {
-        try {
-          console.log(`Scraping page ${pageNum}/${this.config.maxPages}...`);
+        // 1. Get all listing links from this index page
+        const pageUrl = `https://www.tayara.tn/ads/c/Immobilier?page=${pageNum}`;
+        await page.goto(pageUrl, {
+          waitUntil: "networkidle2",
+          timeout: 40000,
+        });
+        await page.waitForSelector('a[href*="/item/"]', { timeout: 20000 });
+        const links = await page.$$eval('a[href*="/item/"]', (as) =>
+          Array.from(new Set(as.map((a) => (a as HTMLAnchorElement).href)))
+        );
+        console.log(`Page ${pageNum}: ${links.length} unique links.`);
 
-          const listingUrls = await this.collectListingUrls(listPage, pageNum);
-          console.log(`Found ${listingUrls.length} listing URLs on page ${pageNum}`);
+        // 2. Grab detail data for each listing
+        for (const link of links) {
+          try {
+            const detail = await this.browser!.newPage();
+            await detail.setUserAgent(this.config.userAgent!);
+            await detail.goto(link, {
+              waitUntil: "domcontentloaded",
+              timeout: 40000,
+            });
+            await detail.waitForSelector("h1", { timeout: 20000 });
 
-          for (const listingUrl of listingUrls) {
-            try {
-              const listingId = this.extractListingId(listingUrl);
-              if (seenIds.has(listingId)) {
-                continue;
-              }
+            const html = await detail.content();
+            const title = await detail.$eval("h1", (el) =>
+              el.textContent?.trim() || ""
+            );
 
-              const property = await this.scrapeListingDetails(detailPage, listingUrl);
-              if (!property) {
-                continue;
-              }
+            // Price extraction
+            const price = parsePriceFromHtml(html);
 
-              seenIds.add(property.listing_id);
-              properties.push(property);
-            } catch (detailError: any) {
-              errors.push(
-                `Error scraping listing ${listingUrl}: ${detailError.message}`,
-              );
-            }
+            // Description extraction
+            const description = parseDescription(html);
 
-            await this.delay(700);
-          }
+            // Criteria extraction
+            const criteria = parseCriteriaSection(html);
 
-          if (pageNum < this.config.maxPages!) {
+            // Location extraction (breadcrumb)
+            const loc = parseLocationFromHtml(html);
+
+            // Images
+            const allImages = await detail.$$eval("img", (imgs) =>
+              imgs.map((img) => img.src)
+            );
+            const images = filterPropertyImages(allImages);
+
+            const prop: ScrapedProperty = {
+              source_url: link.split("?")[0],
+              listing_id: link.split("/").filter(Boolean).pop() || "",
+              source_website: "tayara.tn",
+              title,
+              description: description || "",
+              price: price ?? undefined,
+              price_currency: "TND",
+              property_type: "APARTMENT", // (or parse from card for villa, terrain, etc)
+              transaction_type: criteria.transaction_type || "SALE",
+              governorate: loc.governorate || "Unknown",
+              delegation: loc.delegation || "Unknown",
+              neighborhood: loc.neighborhood || undefined,
+              size: criteria.size,
+              size_unit: criteria.size ? "m2" : undefined,
+              bedrooms: criteria.bedrooms,
+              bathrooms: criteria.bathrooms,
+              images,
+              scrape_timestamp: new Date().toISOString(),
+            };
+
+            properties.push(prop);
+            await detail.close();
             await this.randomDelay();
+          } catch (err: any) {
+            errors.push(`[Listing failed ${link}]: ${err.message}`);
+            continue;
           }
-        } catch (pageError: any) {
-          const errorMsg = `Error scraping page ${pageNum}: ${pageError.message}`;
-          errors.push(errorMsg);
-          console.error(errorMsg);
         }
+        await this.randomDelay();
       }
-
-      const endTime = new Date().toISOString();
+      // Save to file
       const now = new Date();
-      const timestamp =
-        now.toISOString().replace(/[:.]/g, '-').split('T')[0] +
-        '_' +
-        now.toISOString().replace(/[:.]/g, '').split('T')[1].slice(0, 6);
-      const dataDir = path.join(__dirname, '../../data/bronze');
-
-      if (!fs.existsSync(dataDir)) {
-        fs.mkdirSync(dataDir, { recursive: true });
-      }
-
-      const filePath = path.join(dataDir, `tayara_${timestamp}.json`);
+      const filePath = path.join(
+        __dirname,
+        "../../data/bronze/tayara_" +
+          now.toISOString().replace(/[:.]/g, "-") +
+          ".json"
+      );
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
       fs.writeFileSync(filePath, JSON.stringify(properties, null, 2));
-
-      console.log(`Saved ${properties.length} properties to ${filePath}`);
+      console.log("[Tayara] Finished. Saved", properties.length, "to", filePath);
 
       return {
-        source: 'tayara',
+        source: "tayara",
         success: errors.length === 0,
         propertiesScraped: properties.length,
         errors,
         startTime,
-        endTime,
-        duration: new Date(endTime).getTime() - new Date(startTime).getTime(),
+        endTime: new Date().toISOString(),
+        duration: Date.now() - Date.parse(startTime),
         filePath,
       };
-    } catch (error: any) {
-      const endTime = new Date().toISOString();
-      console.error('Fatal error in Tayara scraper:', error);
-      return {
-        source: 'tayara',
-        success: false,
-        propertiesScraped: properties.length,
-        errors: [...errors, `Fatal error: ${error.message}`],
-        startTime,
-        endTime,
-        duration: new Date(endTime).getTime() - new Date(startTime).getTime(),
-      };
     } finally {
-      if (this.browser) {
-        await this.browser.close();
-        console.log('Browser closed');
-      }
+      if (this.browser) await this.browser.close();
     }
   }
 }
