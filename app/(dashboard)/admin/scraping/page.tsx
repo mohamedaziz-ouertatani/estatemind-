@@ -8,6 +8,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
+import { useUiPreferences } from '@/components/providers/ui-preferences-provider';
 
 type Tab = 'quick' | 'individual' | 'monitor';
 
@@ -67,6 +68,7 @@ type AutomationSchedule = {
   msUntilNextRun: number;
 };
 
+
 export default function ScrapingAdminPage() {
   const [activeTab, setActiveTab] = useState<Tab>('quick');
   const [loading, setLoading] = useState(false);
@@ -80,8 +82,59 @@ export default function ScrapingAdminPage() {
   const [reconcileSummary, setReconcileSummary] = useState<ReconcileSummary | null>(null);
   const [automationSchedules, setAutomationSchedules] = useState<AutomationSchedule[]>([]);
   const [scheduleNow, setScheduleNow] = useState(Date.now());
-
   const API_KEY = process.env.NEXT_PUBLIC_SCRAPER_API_KEY;
+  const { t } = useUiPreferences();
+
+  const fetchRealtimeStatus = useCallback(async () => {
+    const params = new URLSearchParams({ limit: '8' });
+    if (lastJobId) {
+      params.set('jobId', lastJobId);
+    }
+
+    const response = await fetch(`/api/scrape/realtime?${params.toString()}`, {
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Unable to fetch real-time scraping status');
+    }
+
+    setRealtimeData(data);
+
+    if (data.trackedJob) {
+      setJobStatus({
+        state: data.trackedJob.state,
+        progress:
+          typeof data.trackedJob.progress === 'number'
+            ? data.trackedJob.progress
+            : 0,
+        result: data.trackedJob.result,
+      });
+    }
+  }, [lastJobId]);
+
+  useEffect(() => {
+    if (activeTab !== 'monitor') {
+      return;
+    }
+
+    fetchRealtimeStatus().catch((error) => {
+      console.error('Failed to fetch real-time data:', error);
+    });
+
+    if (!autoRefresh) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      fetchRealtimeStatus().catch((error) => {
+        console.error('Failed to fetch real-time data:', error);
+      });
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab, autoRefresh, fetchRealtimeStatus]);
 
   const fetchRealtimeStatus = useCallback(async () => {
     const params = new URLSearchParams({ limit: '8' });
@@ -265,6 +318,7 @@ export default function ScrapingAdminPage() {
   }
 
 
+
   function formatRemainingTime(ms: number) {
     if (ms <= 0) {
       return 'now';
@@ -323,10 +377,10 @@ export default function ScrapingAdminPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          🕷️ Scraping Management
+          🕷️ {t('title')}
         </h1>
         <p className="text-gray-600">
-          Manage and monitor web scraping jobs for property listings
+          {t('subtitle')}
         </p>
       </div>
 
@@ -340,7 +394,7 @@ export default function ScrapingAdminPage() {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          Quick Actions
+          {t('quick')}
         </button>
         <button
           onClick={() => setActiveTab('individual')}
@@ -350,7 +404,7 @@ export default function ScrapingAdminPage() {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          Individual Sources
+          {t('individual')}
         </button>
         <button
           onClick={() => setActiveTab('monitor')}
@@ -360,11 +414,11 @@ export default function ScrapingAdminPage() {
               : 'text-gray-600 hover:text-gray-900'
           }`}
         >
-          Monitor
+          {t('monitor')}
         </button>
       </div>
 
-      {/* Quick Actions Tab */}
+      {/* {t('quick')} Tab */}
       {activeTab === 'quick' && (
         <div className="space-y-6">
           <Card className="p-6">
@@ -415,12 +469,12 @@ export default function ScrapingAdminPage() {
         </div>
       )}
 
-      {/* Individual Sources Tab */}
+      {/* {t('individual')} Tab */}
       {activeTab === 'individual' && (
         <div className="space-y-6">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">
-              Scrape Individual Sources
+              Scrape {t('individual')}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Tayara */}
@@ -483,7 +537,7 @@ export default function ScrapingAdminPage() {
         </div>
       )}
 
-      {/* Monitor Tab */}
+      {/* {t('monitor')} Tab */}
       {activeTab === 'monitor' && (
         <div className="space-y-6">
           <Card className="p-6">
@@ -626,7 +680,7 @@ export default function ScrapingAdminPage() {
             <div className="mt-6 border rounded-lg p-4 bg-indigo-50">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div>
-                  <p className="font-semibold text-indigo-900">🤖 Source Sync Agent</p>
+                  <p className="font-semibold text-indigo-900">🤖 {t('sourceAgent')}</p>
                   <p className="text-xs text-indigo-800">
                     Automatically detects deleted/sold source listings and updates local records.
                   </p>
@@ -637,13 +691,13 @@ export default function ScrapingAdminPage() {
                     onClick={() => runSourceReconcile(true)}
                     disabled={reconcileLoading}
                   >
-                    {reconcileLoading ? '⏳ Running...' : 'Dry Run'}
+                    {reconcileLoading ? '⏳ Running...' : t('dryRun')}
                   </Button>
                   <Button
                     onClick={() => runSourceReconcile(false)}
                     disabled={reconcileLoading}
                   >
-                    {reconcileLoading ? '⏳ Running...' : 'Run Sync Now'}
+                    {reconcileLoading ? '⏳ Running...' : t('runNow')}
                   </Button>
                 </div>
               </div>
@@ -666,7 +720,7 @@ export default function ScrapingAdminPage() {
             <div className="mt-6 border rounded-lg p-4 bg-slate-50">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="font-semibold text-slate-900">⏱️ Automation Scheduler</p>
+                  <p className="font-semibold text-slate-900">⏱️ {t('automation')}</p>
                   <p className="text-xs text-slate-700">
                     Upcoming automated jobs for scrape, source sync, and ingestion.
                   </p>
@@ -727,7 +781,7 @@ export default function ScrapingAdminPage() {
 
       {/* Info Panel */}
       <Card className="p-6 mt-6 bg-blue-50">
-        <h3 className="font-medium mb-2">ℹ️ Information</h3>
+        <h3 className="font-medium mb-2">ℹ️ {t('info')}</h3>
         <ul className="text-sm text-gray-700 space-y-1">
           <li>• Incremental scrapes fetch the latest listings (5 pages)</li>
           <li>• Full scrapes fetch more comprehensive data (10+ pages)</li>
