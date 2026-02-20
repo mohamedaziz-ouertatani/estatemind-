@@ -1,16 +1,16 @@
-'use client';
+"use client";
 
 /**
  * Admin Scraping Dashboard
  * Manage and monitor scraping jobs
  */
 
-import { useCallback, useEffect, useState } from 'react';
-import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { useUiPreferences } from '@/components/providers/ui-preferences-provider';
+import { useCallback, useEffect, useState } from "react";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { useUiPreferences } from "@/components/providers/ui-preferences-provider";
 
-type Tab = 'quick' | 'individual' | 'monitor';
+type Tab = "quick" | "individual" | "monitor";
 
 type QueueMetrics = {
   waiting: number;
@@ -26,15 +26,19 @@ type RealTimeJob = {
   progress: number | object;
   data: {
     sources: string[];
-    type?: 'full' | 'incremental';
+    type?: "full" | "incremental";
     maxPages?: number;
-    priority?: 'high' | 'normal' | 'low';
+    priority?: "high" | "normal" | "low";
   };
   failedReason?: string;
   result?: {
     success: boolean;
     totalPropertiesScraped: number;
-    results?: Array<{ source: string; success: boolean; propertiesScraped: number }>;
+    results?: Array<{
+      source: string;
+      success: boolean;
+      propertiesScraped: number;
+    }>;
   };
 };
 
@@ -45,7 +49,6 @@ type RealTimeResponse = {
   trackedJob: RealTimeJob | null;
   recentJobs: RealTimeJob[];
 };
-
 
 type ReconcileSummary = {
   dryRun: boolean;
@@ -68,36 +71,44 @@ type AutomationSchedule = {
   msUntilNextRun: number;
 };
 
-
 export default function ScrapingAdminPage() {
-  const [activeTab, setActiveTab] = useState<Tab>('quick');
+  const [activeTab, setActiveTab] = useState<Tab>("quick");
   const [loading, setLoading] = useState(false);
   const [lastJobId, setLastJobId] = useState<string | null>(null);
   const [jobStatus, setJobStatus] = useState<any>(null);
-  const [realtimeData, setRealtimeData] = useState<RealTimeResponse | null>(null);
+  const [realtimeData, setRealtimeData] = useState<RealTimeResponse | null>(
+    null,
+  );
   const [autoRefresh, setAutoRefresh] = useState(true);
-  const [pendingIngestionJobId, setPendingIngestionJobId] = useState<string | null>(null);
+  const [pendingIngestionJobId, setPendingIngestionJobId] = useState<
+    string | null
+  >(null);
   const [ingestionLoading, setIngestionLoading] = useState(false);
   const [reconcileLoading, setReconcileLoading] = useState(false);
-  const [reconcileSummary, setReconcileSummary] = useState<ReconcileSummary | null>(null);
-  const [automationSchedules, setAutomationSchedules] = useState<AutomationSchedule[]>([]);
+  const [reconcileSummary, setReconcileSummary] =
+    useState<ReconcileSummary | null>(null);
+  const [automationSchedules, setAutomationSchedules] = useState<
+    AutomationSchedule[]
+  >([]);
   const [scheduleNow, setScheduleNow] = useState(Date.now());
   const API_KEY = process.env.NEXT_PUBLIC_SCRAPER_API_KEY;
   const { t } = useUiPreferences();
 
   const fetchRealtimeStatus = useCallback(async () => {
-    const params = new URLSearchParams({ limit: '8' });
+    const params = new URLSearchParams({ limit: "8" });
     if (lastJobId) {
-      params.set('jobId', lastJobId);
+      params.set("jobId", lastJobId);
     }
 
     const response = await fetch(`/api/scrape/realtime?${params.toString()}`, {
-      cache: 'no-store',
+      cache: "no-store",
     });
 
     const data = await response.json();
     if (!data.success) {
-      throw new Error(data.error || 'Unable to fetch real-time scraping status');
+      throw new Error(
+        data.error || "Unable to fetch real-time scraping status",
+      );
     }
 
     setRealtimeData(data);
@@ -106,7 +117,7 @@ export default function ScrapingAdminPage() {
       setJobStatus({
         state: data.trackedJob.state,
         progress:
-          typeof data.trackedJob.progress === 'number'
+          typeof data.trackedJob.progress === "number"
             ? data.trackedJob.progress
             : 0,
         result: data.trackedJob.result,
@@ -115,12 +126,12 @@ export default function ScrapingAdminPage() {
   }, [lastJobId]);
 
   useEffect(() => {
-    if (activeTab !== 'monitor') {
+    if (activeTab !== "monitor") {
       return;
     }
 
     fetchRealtimeStatus().catch((error) => {
-      console.error('Failed to fetch real-time data:', error);
+      console.error("Failed to fetch real-time data:", error);
     });
 
     if (!autoRefresh) {
@@ -129,49 +140,20 @@ export default function ScrapingAdminPage() {
 
     const interval = window.setInterval(() => {
       fetchRealtimeStatus().catch((error) => {
-        console.error('Failed to fetch real-time data:', error);
+        console.error("Failed to fetch real-time data:", error);
       });
     }, 3000);
 
     return () => window.clearInterval(interval);
   }, [activeTab, autoRefresh, fetchRealtimeStatus]);
 
-  const fetchRealtimeStatus = useCallback(async () => {
-    const params = new URLSearchParams({ limit: '8' });
-    if (lastJobId) {
-      params.set('jobId', lastJobId);
-    }
-
-    const response = await fetch(`/api/scrape/realtime?${params.toString()}`, {
-      cache: 'no-store',
-    });
-
-    const data = await response.json();
-    if (!data.success) {
-      throw new Error(data.error || 'Unable to fetch real-time scraping status');
-    }
-
-    setRealtimeData(data);
-
-    if (data.trackedJob) {
-      setJobStatus({
-        state: data.trackedJob.state,
-        progress:
-          typeof data.trackedJob.progress === 'number'
-            ? data.trackedJob.progress
-            : 0,
-        result: data.trackedJob.result,
-      });
-    }
-  }, [lastJobId]);
-
   useEffect(() => {
-    if (activeTab !== 'monitor') {
+    if (activeTab !== "monitor") {
       return;
     }
 
     fetchRealtimeStatus().catch((error) => {
-      console.error('Failed to fetch real-time data:', error);
+      console.error("Failed to fetch real-time data:", error);
     });
 
     if (!autoRefresh) {
@@ -180,7 +162,7 @@ export default function ScrapingAdminPage() {
 
     const interval = window.setInterval(() => {
       fetchRealtimeStatus().catch((error) => {
-        console.error('Failed to fetch real-time data:', error);
+        console.error("Failed to fetch real-time data:", error);
       });
     }, 3000);
 
@@ -192,15 +174,15 @@ export default function ScrapingAdminPage() {
    */
   async function triggerScrape(
     sources: string[],
-    type: 'full' | 'incremental' = 'incremental',
-    maxPages: number = 5
+    type: "full" | "incremental" = "incremental",
+    maxPages: number = 5,
   ) {
     setLoading(true);
     try {
-      const response = await fetch('/api/scrape', {
-        method: 'POST',
+      const response = await fetch("/api/scrape", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${API_KEY}`,
         },
         body: JSON.stringify({
@@ -231,7 +213,7 @@ export default function ScrapingAdminPage() {
    */
   async function checkJobStatus() {
     if (!lastJobId) {
-      alert('No job ID available');
+      alert("No job ID available");
       return;
     }
 
@@ -244,7 +226,6 @@ export default function ScrapingAdminPage() {
       setLoading(false);
     }
   }
-
 
   useEffect(() => {
     if (!lastJobId || !realtimeData?.trackedJob?.result?.success) {
@@ -267,10 +248,10 @@ export default function ScrapingAdminPage() {
 
     setIngestionLoading(true);
     try {
-      const response = await fetch('/api/scrape/ingest', {
-        method: 'POST',
+      const response = await fetch("/api/scrape/ingest", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${API_KEY}`,
         },
         body: JSON.stringify({ jobId: pendingIngestionJobId }),
@@ -278,7 +259,7 @@ export default function ScrapingAdminPage() {
 
       const data = await response.json();
       if (!data.success) {
-        throw new Error(data.error || 'Failed to ingest scraped data');
+        throw new Error(data.error || "Failed to ingest scraped data");
       }
 
       alert(`✅ Data ingested for job ${pendingIngestionJobId}`);
@@ -290,14 +271,13 @@ export default function ScrapingAdminPage() {
     }
   }
 
-
   async function runSourceReconcile(dryRun: boolean) {
     setReconcileLoading(true);
     try {
-      const response = await fetch('/api/scrape/reconcile', {
-        method: 'POST',
+      const response = await fetch("/api/scrape/reconcile", {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           Authorization: `Bearer ${API_KEY}`,
         },
         body: JSON.stringify({ dryRun, batchSize: 100 }),
@@ -305,11 +285,11 @@ export default function ScrapingAdminPage() {
 
       const data = await response.json();
       if (!data.success) {
-        throw new Error(data.error || 'Failed to run source reconciliation');
+        throw new Error(data.error || "Failed to run source reconciliation");
       }
 
       setReconcileSummary(data.summary);
-      alert(`✅ Source sync ${dryRun ? 'dry-run' : 'run'} completed`);
+      alert(`✅ Source sync ${dryRun ? "dry-run" : "run"} completed`);
     } catch (error: any) {
       alert(`❌ Source sync failed: ${error.message}`);
     } finally {
@@ -317,11 +297,9 @@ export default function ScrapingAdminPage() {
     }
   }
 
-
-
   function formatRemainingTime(ms: number) {
     if (ms <= 0) {
-      return 'now';
+      return "now";
     }
 
     const totalSeconds = Math.floor(ms / 1000);
@@ -339,21 +317,23 @@ export default function ScrapingAdminPage() {
   }
 
   async function fetchSchedules() {
-    const response = await fetch('/api/scrape/schedules', { cache: 'no-store' });
+    const response = await fetch("/api/scrape/schedules", {
+      cache: "no-store",
+    });
     const data = await response.json();
     if (!data.success) {
-      throw new Error(data.error || 'Failed to fetch schedules');
+      throw new Error(data.error || "Failed to fetch schedules");
     }
     setAutomationSchedules(data.schedules || []);
   }
 
   useEffect(() => {
-    if (activeTab !== 'monitor') {
+    if (activeTab !== "monitor") {
       return;
     }
 
     fetchSchedules().catch((error) => {
-      console.error('Failed to fetch schedules:', error);
+      console.error("Failed to fetch schedules:", error);
     });
 
     const schedulesInterval = window.setInterval(() => {
@@ -362,7 +342,7 @@ export default function ScrapingAdminPage() {
 
     const refreshInterval = window.setInterval(() => {
       fetchSchedules().catch((error) => {
-        console.error('Failed to fetch schedules:', error);
+        console.error("Failed to fetch schedules:", error);
       });
     }, 30000);
 
@@ -377,49 +357,47 @@ export default function ScrapingAdminPage() {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900 mb-2">
-          🕷️ {t('title')}
+          🕷️ {t("title")}
         </h1>
-        <p className="text-gray-600">
-          {t('subtitle')}
-        </p>
+        <p className="text-gray-600">{t("subtitle")}</p>
       </div>
 
       {/* Tabs */}
       <div className="flex space-x-2 border-b mb-6">
         <button
-          onClick={() => setActiveTab('quick')}
+          onClick={() => setActiveTab("quick")}
           className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'quick'
-              ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+            activeTab === "quick"
+              ? "border-b-2 border-blue-600 text-blue-600"
+              : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          {t('quick')}
+          {t("quick")}
         </button>
         <button
-          onClick={() => setActiveTab('individual')}
+          onClick={() => setActiveTab("individual")}
           className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'individual'
-              ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+            activeTab === "individual"
+              ? "border-b-2 border-blue-600 text-blue-600"
+              : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          {t('individual')}
+          {t("individual")}
         </button>
         <button
-          onClick={() => setActiveTab('monitor')}
+          onClick={() => setActiveTab("monitor")}
           className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === 'monitor'
-              ? 'border-b-2 border-blue-600 text-blue-600'
-              : 'text-gray-600 hover:text-gray-900'
+            activeTab === "monitor"
+              ? "border-b-2 border-blue-600 text-blue-600"
+              : "text-gray-600 hover:text-gray-900"
           }`}
         >
-          {t('monitor')}
+          {t("monitor")}
         </button>
       </div>
 
       {/* {t('quick')} Tab */}
-      {activeTab === 'quick' && (
+      {activeTab === "quick" && (
         <div className="space-y-6">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">Quick Scrape Actions</h2>
@@ -432,15 +410,15 @@ export default function ScrapingAdminPage() {
                 <Button
                   onClick={() =>
                     triggerScrape(
-                      ['tayara', 'mubawab', 'tunisie-annonce'],
-                      'incremental',
-                      5
+                      ["tayara", "mubawab", "tunisie-annonce"],
+                      "incremental",
+                      5,
                     )
                   }
                   disabled={loading}
                   className="w-full"
                 >
-                  {loading ? '⏳ Starting...' : '🚀 Quick Scrape'}
+                  {loading ? "⏳ Starting..." : "🚀 Quick Scrape"}
                 </Button>
               </div>
 
@@ -452,16 +430,16 @@ export default function ScrapingAdminPage() {
                 <Button
                   onClick={() =>
                     triggerScrape(
-                      ['tayara', 'mubawab', 'tunisie-annonce'],
-                      'full',
-                      10
+                      ["tayara", "mubawab", "tunisie-annonce"],
+                      "full",
+                      10,
                     )
                   }
                   disabled={loading}
                   className="w-full"
                   variant="outline"
                 >
-                  {loading ? '⏳ Starting...' : '🔄 Full Scrape'}
+                  {loading ? "⏳ Starting..." : "🔄 Full Scrape"}
                 </Button>
               </div>
             </div>
@@ -470,11 +448,11 @@ export default function ScrapingAdminPage() {
       )}
 
       {/* {t('individual')} Tab */}
-      {activeTab === 'individual' && (
+      {activeTab === "individual" && (
         <div className="space-y-6">
           <Card className="p-6">
             <h2 className="text-xl font-semibold mb-4">
-              Scrape {t('individual')}
+              Scrape {t("individual")}
             </h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Tayara */}
@@ -487,11 +465,11 @@ export default function ScrapingAdminPage() {
                   Tunisia&apos;s largest classifieds platform
                 </p>
                 <Button
-                  onClick={() => triggerScrape(['tayara'], 'incremental', 5)}
+                  onClick={() => triggerScrape(["tayara"], "incremental", 5)}
                   disabled={loading}
                   className="w-full bg-yellow-600 hover:bg-yellow-700"
                 >
-                  {loading ? '⏳ Starting...' : 'Scrape Tayara'}
+                  {loading ? "⏳ Starting..." : "Scrape Tayara"}
                 </Button>
               </div>
 
@@ -505,11 +483,11 @@ export default function ScrapingAdminPage() {
                   Real estate focused website
                 </p>
                 <Button
-                  onClick={() => triggerScrape(['mubawab'], 'incremental', 5)}
+                  onClick={() => triggerScrape(["mubawab"], "incremental", 5)}
                   disabled={loading}
                   className="w-full bg-blue-600 hover:bg-blue-700"
                 >
-                  {loading ? '⏳ Starting...' : 'Scrape Mubawab'}
+                  {loading ? "⏳ Starting..." : "Scrape Mubawab"}
                 </Button>
               </div>
 
@@ -524,12 +502,12 @@ export default function ScrapingAdminPage() {
                 </p>
                 <Button
                   onClick={() =>
-                    triggerScrape(['tunisie-annonce'], 'incremental', 5)
+                    triggerScrape(["tunisie-annonce"], "incremental", 5)
                   }
                   disabled={loading}
                   className="w-full bg-green-600 hover:bg-green-700"
                 >
-                  {loading ? '⏳ Starting...' : 'Scrape TunisieAnnonce'}
+                  {loading ? "⏳ Starting..." : "Scrape TunisieAnnonce"}
                 </Button>
               </div>
             </div>
@@ -538,24 +516,26 @@ export default function ScrapingAdminPage() {
       )}
 
       {/* {t('monitor')} Tab */}
-      {activeTab === 'monitor' && (
+      {activeTab === "monitor" && (
         <div className="space-y-6">
           <Card className="p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-semibold">Real-Time Scraping Agent</h2>
+              <h2 className="text-xl font-semibold">
+                Real-Time Scraping Agent
+              </h2>
               <div className="flex items-center gap-2">
                 <button
                   className={`px-3 py-1 rounded text-sm ${
                     autoRefresh
-                      ? 'bg-emerald-100 text-emerald-800'
-                      : 'bg-gray-100 text-gray-700'
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-gray-100 text-gray-700"
                   }`}
                   onClick={() => setAutoRefresh((prev) => !prev)}
                 >
-                  {autoRefresh ? '🟢 Live (3s)' : '⚪ Paused'}
+                  {autoRefresh ? "🟢 Live (3s)" : "⚪ Paused"}
                 </button>
                 <Button onClick={checkJobStatus} disabled={loading}>
-                  {loading ? '⏳ Checking...' : '🔄 Refresh Status'}
+                  {loading ? "⏳ Checking..." : "🔄 Refresh Status"}
                 </Button>
               </div>
             </div>
@@ -563,13 +543,16 @@ export default function ScrapingAdminPage() {
             {pendingIngestionJobId && (
               <div className="mb-4 border border-amber-300 bg-amber-50 rounded p-3 flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
-                  <p className="font-medium text-amber-900">📥 Scrape completed</p>
+                  <p className="font-medium text-amber-900">
+                    📥 Scrape completed
+                  </p>
                   <p className="text-sm text-amber-800">
-                    Job #{pendingIngestionJobId} finished successfully. Do you want to ingest this scraped data into the database now?
+                    Job #{pendingIngestionJobId} finished successfully. Do you
+                    want to ingest this scraped data into the database now?
                   </p>
                 </div>
                 <Button onClick={acceptAndIngest} disabled={ingestionLoading}>
-                  {ingestionLoading ? '⏳ Ingesting...' : '✅ Accept & Ingest'}
+                  {ingestionLoading ? "⏳ Ingesting..." : "✅ Accept & Ingest"}
                 </Button>
               </div>
             )}
@@ -578,23 +561,33 @@ export default function ScrapingAdminPage() {
               <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-4">
                 <div className="border rounded p-3">
                   <p className="text-xs text-gray-600">Waiting</p>
-                  <p className="text-xl font-semibold">{realtimeData.queue.waiting}</p>
+                  <p className="text-xl font-semibold">
+                    {realtimeData.queue.waiting}
+                  </p>
                 </div>
                 <div className="border rounded p-3">
                   <p className="text-xs text-gray-600">Active</p>
-                  <p className="text-xl font-semibold text-blue-600">{realtimeData.queue.active}</p>
+                  <p className="text-xl font-semibold text-blue-600">
+                    {realtimeData.queue.active}
+                  </p>
                 </div>
                 <div className="border rounded p-3">
                   <p className="text-xs text-gray-600">Completed</p>
-                  <p className="text-xl font-semibold text-emerald-600">{realtimeData.queue.completed}</p>
+                  <p className="text-xl font-semibold text-emerald-600">
+                    {realtimeData.queue.completed}
+                  </p>
                 </div>
                 <div className="border rounded p-3">
                   <p className="text-xs text-gray-600">Failed</p>
-                  <p className="text-xl font-semibold text-red-600">{realtimeData.queue.failed}</p>
+                  <p className="text-xl font-semibold text-red-600">
+                    {realtimeData.queue.failed}
+                  </p>
                 </div>
                 <div className="border rounded p-3">
                   <p className="text-xs text-gray-600">Delayed</p>
-                  <p className="text-xl font-semibold">{realtimeData.queue.delayed}</p>
+                  <p className="text-xl font-semibold">
+                    {realtimeData.queue.delayed}
+                  </p>
                 </div>
               </div>
             )}
@@ -608,7 +601,8 @@ export default function ScrapingAdminPage() {
                   </div>
                   {realtimeData?.timestamp && (
                     <p className="text-xs text-gray-500">
-                      Last update: {new Date(realtimeData.timestamp).toLocaleTimeString()}
+                      Last update:{" "}
+                      {new Date(realtimeData.timestamp).toLocaleTimeString()}
                     </p>
                   )}
                 </div>
@@ -618,11 +612,15 @@ export default function ScrapingAdminPage() {
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <p className="text-sm text-gray-600">State:</p>
-                        <p className="font-medium capitalize">{jobStatus.state}</p>
+                        <p className="font-medium capitalize">
+                          {jobStatus.state}
+                        </p>
                       </div>
                       <div>
                         <p className="text-sm text-gray-600">Progress:</p>
-                        <p className="font-medium">{jobStatus.progress || 0}%</p>
+                        <p className="font-medium">
+                          {jobStatus.progress || 0}%
+                        </p>
                       </div>
                       {jobStatus.result && (
                         <>
@@ -637,7 +635,7 @@ export default function ScrapingAdminPage() {
                           <div>
                             <p className="text-sm text-gray-600">Success:</p>
                             <p className="font-medium">
-                              {jobStatus.result.success ? '✅ Yes' : '❌ No'}
+                              {jobStatus.result.success ? "✅ Yes" : "❌ No"}
                             </p>
                           </div>
                         </>
@@ -659,10 +657,10 @@ export default function ScrapingAdminPage() {
                                 <span className="font-medium">
                                   {result.source}
                                 </span>
-                                : {result.propertiesScraped} properties{' '}
-                                {result.success ? '✅' : '❌'}
+                                : {result.propertiesScraped} properties{" "}
+                                {result.success ? "✅" : "❌"}
                               </div>
-                            )
+                            ),
                           )}
                         </div>
                       </div>
@@ -676,13 +674,15 @@ export default function ScrapingAdminPage() {
               </p>
             )}
 
-
             <div className="mt-6 border rounded-lg p-4 bg-indigo-50">
               <div className="flex items-center justify-between gap-2 mb-3">
                 <div>
-                  <p className="font-semibold text-indigo-900">🤖 {t('sourceAgent')}</p>
+                  <p className="font-semibold text-indigo-900">
+                    🤖 {t("sourceAgent")}
+                  </p>
                   <p className="text-xs text-indigo-800">
-                    Automatically detects deleted/sold source listings and updates local records.
+                    Automatically detects deleted/sold source listings and
+                    updates local records.
                   </p>
                 </div>
                 <div className="flex gap-2">
@@ -691,38 +691,56 @@ export default function ScrapingAdminPage() {
                     onClick={() => runSourceReconcile(true)}
                     disabled={reconcileLoading}
                   >
-                    {reconcileLoading ? '⏳ Running...' : t('dryRun')}
+                    {reconcileLoading ? "⏳ Running..." : t("dryRun")}
                   </Button>
                   <Button
                     onClick={() => runSourceReconcile(false)}
                     disabled={reconcileLoading}
                   >
-                    {reconcileLoading ? '⏳ Running...' : t('runNow')}
+                    {reconcileLoading ? "⏳ Running..." : t("runNow")}
                   </Button>
                 </div>
               </div>
 
               {reconcileSummary && (
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-sm">
-                  <div className="border rounded bg-white p-2">Scanned: {reconcileSummary.scanned}</div>
-                  <div className="border rounded bg-white p-2">Unchanged: {reconcileSummary.unchanged}</div>
-                  <div className="border rounded bg-white p-2">Inactive: {reconcileSummary.markedInactive}</div>
-                  <div className="border rounded bg-white p-2">Sold: {reconcileSummary.markedSold}</div>
-                  <div className="border rounded bg-white p-2">Deleted: {reconcileSummary.deleted}</div>
-                  <div className="border rounded bg-white p-2">Errors: {reconcileSummary.errors}</div>
-                  <div className="border rounded bg-white p-2">Dry Run: {reconcileSummary.dryRun ? 'Yes' : 'No'}</div>
-                  <div className="border rounded bg-white p-2">Delete Mode: {reconcileSummary.deleteMode ? 'On' : 'Off'}</div>
+                  <div className="border rounded bg-white p-2">
+                    Scanned: {reconcileSummary.scanned}
+                  </div>
+                  <div className="border rounded bg-white p-2">
+                    Unchanged: {reconcileSummary.unchanged}
+                  </div>
+                  <div className="border rounded bg-white p-2">
+                    Inactive: {reconcileSummary.markedInactive}
+                  </div>
+                  <div className="border rounded bg-white p-2">
+                    Sold: {reconcileSummary.markedSold}
+                  </div>
+                  <div className="border rounded bg-white p-2">
+                    Deleted: {reconcileSummary.deleted}
+                  </div>
+                  <div className="border rounded bg-white p-2">
+                    Errors: {reconcileSummary.errors}
+                  </div>
+                  <div className="border rounded bg-white p-2">
+                    Dry Run: {reconcileSummary.dryRun ? "Yes" : "No"}
+                  </div>
+                  <div className="border rounded bg-white p-2">
+                    Delete Mode: {reconcileSummary.deleteMode ? "On" : "Off"}
+                  </div>
                 </div>
               )}
             </div>
 
-
             <div className="mt-6 border rounded-lg p-4 bg-slate-50">
               <div className="flex items-center justify-between mb-3">
                 <div>
-                  <p className="font-semibold text-slate-900">⏱️ {t('automation')}</p>
+                  <p className="font-semibold text-slate-900">
+                    ⏱️ {t("automation")}
+                  </p>
                   <p className="text-xs text-slate-700">
-                    Upcoming automated jobs for scrape, source sync, and ingestion.
+                    Upcoming automated jobs for scrape, source sync, and
+                    ingestion.
                   </p>
                 </div>
               </div>
@@ -730,33 +748,46 @@ export default function ScrapingAdminPage() {
               {automationSchedules.length > 0 ? (
                 <div className="space-y-2">
                   {automationSchedules.map((schedule) => {
-                    const msUntil = new Date(schedule.nextRun).getTime() - scheduleNow;
+                    const msUntil =
+                      new Date(schedule.nextRun).getTime() - scheduleNow;
                     return (
-                      <div key={schedule.id} className="border rounded bg-white p-3 text-sm">
+                      <div
+                        key={schedule.id}
+                        className="border rounded bg-white p-3 text-sm"
+                      >
                         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-1">
                           <p className="font-medium">{schedule.name}</p>
                           <p className="text-slate-600">
-                            Next run in <span className="font-semibold">{formatRemainingTime(msUntil)}</span>
+                            Next run in{" "}
+                            <span className="font-semibold">
+                              {formatRemainingTime(msUntil)}
+                            </span>
                           </p>
                         </div>
                         <p className="text-slate-600 mt-1">
-                          {schedule.description} • Cron: <span className="font-mono">{schedule.cron}</span>
+                          {schedule.description} • Cron:{" "}
+                          <span className="font-mono">{schedule.cron}</span>
                         </p>
                         <p className="text-xs text-slate-500 mt-1">
-                          Next at {new Date(schedule.nextRun).toLocaleString()} ({schedule.timezone})
+                          Next at {new Date(schedule.nextRun).toLocaleString()}{" "}
+                          ({schedule.timezone})
                         </p>
                       </div>
                     );
                   })}
                 </div>
               ) : (
-                <p className="text-sm text-slate-500">No schedules available.</p>
+                <p className="text-sm text-slate-500">
+                  No schedules available.
+                </p>
               )}
             </div>
 
             {realtimeData?.recentJobs?.length ? (
               <div className="mt-6">
-                <p className="text-sm text-gray-600 mb-2">Recent Queue Activity</p>
+                <p className="text-sm text-gray-600 mb-2">
+                  Recent Queue Activity
+                </p>
                 <div className="space-y-2">
                   {realtimeData.recentJobs.map((job) => (
                     <div key={job.id} className="border rounded p-3 text-sm">
@@ -765,10 +796,13 @@ export default function ScrapingAdminPage() {
                         <p className="capitalize font-medium">{job.state}</p>
                       </div>
                       <p className="text-gray-600 mt-1">
-                        Sources: {job.data.sources.join(', ')} • Type: {job.data.type || 'incremental'}
+                        Sources: {job.data.sources.join(", ")} • Type:{" "}
+                        {job.data.type || "incremental"}
                       </p>
                       {job.failedReason && (
-                        <p className="text-red-600 mt-1">Reason: {job.failedReason}</p>
+                        <p className="text-red-600 mt-1">
+                          Reason: {job.failedReason}
+                        </p>
                       )}
                     </div>
                   ))}
@@ -781,14 +815,15 @@ export default function ScrapingAdminPage() {
 
       {/* Info Panel */}
       <Card className="p-6 mt-6 bg-blue-50">
-        <h3 className="font-medium mb-2">ℹ️ {t('info')}</h3>
+        <h3 className="font-medium mb-2">ℹ️ {t("info")}</h3>
         <ul className="text-sm text-gray-700 space-y-1">
           <li>• Incremental scrapes fetch the latest listings (5 pages)</li>
           <li>• Full scrapes fetch more comprehensive data (10+ pages)</li>
           <li>• Jobs are queued and processed by background workers</li>
           <li>• Scraped data is automatically ingested into the database</li>
           <li>
-            • Scheduled jobs include scraping, source-sync reconciliation, and auto-ingestion
+            • Scheduled jobs include scraping, source-sync reconciliation, and
+            auto-ingestion
           </li>
         </ul>
       </Card>
