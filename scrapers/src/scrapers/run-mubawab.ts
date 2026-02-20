@@ -4,7 +4,7 @@ async function run() {
   console.log("🚀 Starting Mubawab scraper...\n");
 
   const scraper = new MubawabScraper({
-    maxPages: 2, // Test with 2 pages per category
+    maxPages: 1, // Test with 2 pages per category
     delayMin: 2000,
     delayMax: 5000,
   });
