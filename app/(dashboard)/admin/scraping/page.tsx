@@ -136,6 +136,57 @@ export default function ScrapingAdminPage() {
     return () => window.clearInterval(interval);
   }, [activeTab, autoRefresh, fetchRealtimeStatus]);
 
+  const fetchRealtimeStatus = useCallback(async () => {
+    const params = new URLSearchParams({ limit: '8' });
+    if (lastJobId) {
+      params.set('jobId', lastJobId);
+    }
+
+    const response = await fetch(`/api/scrape/realtime?${params.toString()}`, {
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+    if (!data.success) {
+      throw new Error(data.error || 'Unable to fetch real-time scraping status');
+    }
+
+    setRealtimeData(data);
+
+    if (data.trackedJob) {
+      setJobStatus({
+        state: data.trackedJob.state,
+        progress:
+          typeof data.trackedJob.progress === 'number'
+            ? data.trackedJob.progress
+            : 0,
+        result: data.trackedJob.result,
+      });
+    }
+  }, [lastJobId]);
+
+  useEffect(() => {
+    if (activeTab !== 'monitor') {
+      return;
+    }
+
+    fetchRealtimeStatus().catch((error) => {
+      console.error('Failed to fetch real-time data:', error);
+    });
+
+    if (!autoRefresh) {
+      return;
+    }
+
+    const interval = window.setInterval(() => {
+      fetchRealtimeStatus().catch((error) => {
+        console.error('Failed to fetch real-time data:', error);
+      });
+    }, 3000);
+
+    return () => window.clearInterval(interval);
+  }, [activeTab, autoRefresh, fetchRealtimeStatus]);
+
   /**
    * Trigger a scrape job
    */
