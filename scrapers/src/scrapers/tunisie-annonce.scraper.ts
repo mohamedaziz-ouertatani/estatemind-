@@ -94,6 +94,36 @@ export class TunisieAnnonceScraper {
     return "UNKNOWN";
   }
 
+  private parseCoordinates(text: string | undefined): { latitude?: number; longitude?: number } {
+    if (!text) {
+      return {};
+    }
+
+    const patterns = [
+      /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /[?&](?:q|query|ll|sll)=(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+      /(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/,
+    ];
+
+    for (const pattern of patterns) {
+      const match = text.match(pattern);
+      if (!match) continue;
+
+      const latitude = parseFloat(match[1]);
+      const longitude = parseFloat(match[2]);
+      if (
+        Number.isFinite(latitude) &&
+        Number.isFinite(longitude) &&
+        Math.abs(latitude) <= 90 &&
+        Math.abs(longitude) <= 180
+      ) {
+        return { latitude, longitude };
+      }
+    }
+
+    return {};
+  }
+
   private extractIdFromLink(href: string): string {
     const m = href.match(/cod_ann=(\d+)/);
     return m ? m[1] : "";
@@ -131,11 +161,11 @@ export class TunisieAnnonceScraper {
           }
           if (label && label.startsWith("adresse")) {
             const nextTd = labelTd.nextElementSibling as HTMLElement | null;
-            address = nextTd ? nextTd.textContent?.trim() : undefined;
+            address = nextTd?.textContent?.trim() || null;
           }
           if (label === "texte") {
             const nextTd = labelTd.nextElementSibling as HTMLElement | null;
-            description = nextTd ? nextTd.textContent?.trim() : undefined;
+            description = nextTd?.textContent?.trim() || null;
           }
         });
 
@@ -159,12 +189,24 @@ export class TunisieAnnonceScraper {
           contact_phone = cellLi?.textContent?.trim() || null;
         }
 
+        const coordinateHint = Array.from(
+          document.querySelectorAll('a[href], iframe[src], [data-lat], [data-lng], [data-lon]'),
+        )
+          .map((el) =>
+            el.getAttribute('href') ||
+            el.getAttribute('src') ||
+            `${el.getAttribute('data-lat') || ''},${el.getAttribute('data-lng') || el.getAttribute('data-lon') || ''}` ||
+            '',
+          )
+          .join(' ');
+
         return {
-          size: surface || undefined,
-          address,
-          description,
+          size: surface ?? undefined,
+          address: address || undefined,
+          description: description || undefined,
           images,
-          contact_phone,
+          contact_phone: contact_phone || undefined,
+          coordinateHint,
         };
       });
 
@@ -204,7 +246,7 @@ export class TunisieAnnonceScraper {
           // Scrape rows using provided HTML structure!
           const pageProperties = await page.evaluate(() => {
             const results: any[] = [];
-            const rows = document.querySelectorAll("tr.Tableau1");
+            const rows = document.querySelectorAll("tr.Tableau1, tr.Tableau2");
             rows.forEach((row) => {
               try {
                 const cells = row.querySelectorAll("td");
@@ -224,22 +266,20 @@ export class TunisieAnnonceScraper {
                 let listing_id = "";
                 const links = cells[7].querySelectorAll("a");
                 links.forEach((link) => {
-                  if (
-                    link.getAttribute("href") &&
-                    link
-                      .getAttribute("href")!
-                      .includes("Details_Annonces_Immobilier")
-                  ) {
+                  const href = link.getAttribute("href") || "";
+                  if (href.includes("Details_Annonces_Immobilier")) {
                     title = link.textContent?.trim() || "";
-                    listingUrl = link.getAttribute("href");
-                    const idMatch = link
-                      .getAttribute("href")!
-                      .match(/cod_ann=(\d+)/);
+                    listingUrl = href;
+                    const idMatch = href.match(/cod_ann=(\d+)/);
                     if (idMatch) listing_id = idMatch[1];
                   }
                 });
                 if (!listingUrl) return;
-                if (!listing_id) return;
+                if (!listing_id) {
+                  const idFromHref = (listingUrl.match(/cod_ann=(\d+)/) || [])[1];
+                  if (!idFromHref) return;
+                  listing_id = idFromHref;
+                }
                 const priceCell = cells[9];
                 const priceString = priceCell.textContent || "";
                 const dateCell = cells[11];
@@ -275,9 +315,9 @@ export class TunisieAnnonceScraper {
             let priceNum = undefined;
             if (typeof basicInfo.price === "string")
               priceNum = this.parsePrice(basicInfo.price);
-            let listingDateISO: string | null = null;
+            let listingDateISO: string | undefined = undefined;
             if (basicInfo.listing_date) {
-              listingDateISO = parseTunisieAnnonceDate(basicInfo.listing_date);
+              listingDateISO = parseTunisieAnnonceDate(basicInfo.listing_date) || undefined;
             }
             const details = await this.scrapePropertyDetails(
               page,
@@ -285,6 +325,10 @@ export class TunisieAnnonceScraper {
             );
 
             const timestamp = new Date().toISOString();
+            const parsedCoordinates = this.parseCoordinates(
+              `${(details as any)?.coordinateHint || ''} ${details?.address || ''} ${details?.description || ''}`,
+            );
+
             const fullProperty: ScrapedProperty = {
               ...basicInfo,
               price: priceNum,
@@ -293,12 +337,14 @@ export class TunisieAnnonceScraper {
                 basicInfo.property_type,
               ),
               scrape_timestamp: timestamp,
-              listing_date: listingDateISO,
+              listing_date: listingDateISO ?? undefined,
               size: details?.size ?? undefined,
               address: details?.address ?? undefined,
               description: details?.description ?? undefined,
               images: details?.images ?? [],
               contact_phone: details?.contact_phone ?? undefined,
+              latitude: parsedCoordinates.latitude,
+              longitude: parsedCoordinates.longitude,
             };
 
             const validation = validateProperty(fullProperty);

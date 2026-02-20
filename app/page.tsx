@@ -1,36 +1,43 @@
+'use client';
+
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { LanguageThemeControls } from "@/components/nav/language-theme-controls";
+import { useUiPreferences } from "@/components/providers/ui-preferences-provider";
 
 export default function HomePage() {
+  const { t } = useUiPreferences();
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-blue-50 to-white">
+    <div className="min-h-screen bg-gradient-to-b from-orange-50 to-white dark:from-background dark:to-background">
       {/* Header */}
       <header className="border-b bg-white/80 backdrop-blur-sm">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <div className="w-10 h-10 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-xl">E</span>
+            <div className="w-10 h-10 bg-primary rounded-lg flex items-center justify-center">
+              <span className="text-primary-foreground font-bold text-xl">E</span>
             </div>
             <span className="text-xl font-bold">EstateMind</span>
           </div>
           <nav className="hidden md:flex items-center space-x-6">
             <Link href="#features" className="text-gray-600 hover:text-gray-900">
-              Fonctionnalités
+              {t('home_features')}
             </Link>
             <Link href="#pricing" className="text-gray-600 hover:text-gray-900">
-              Tarifs
+              {t('home_pricing')}
             </Link>
             <Link href="#about" className="text-gray-600 hover:text-gray-900">
-              À propos
+              {t('home_about')}
             </Link>
           </nav>
           <div className="flex items-center space-x-4">
+            <LanguageThemeControls />
             <Link href="/login">
-              <Button variant="ghost">Connexion</Button>
+              <Button variant="ghost">{t('login')}</Button>
             </Link>
             <Link href="/register">
-              <Button>S&apos;inscrire</Button>
+              <Button>{t('register')}</Button>
             </Link>
           </div>
         </div>
@@ -40,7 +47,7 @@ export default function HomePage() {
       <section className="container mx-auto px-4 py-20 text-center">
         <h1 className="text-5xl md:text-6xl font-bold text-gray-900 mb-6">
           L&apos;Intelligence Immobilière <br />
-          <span className="text-blue-600">en Tunisie</span>
+          <span className="text-primary">en Tunisie</span>
         </h1>
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">
           Évaluations IA, recherche intelligente de propriétés et analyses de quartiers 
@@ -62,7 +69,7 @@ export default function HomePage() {
 
       {/* Features Section */}
       <section id="features" className="container mx-auto px-4 py-20">
-        <h2 className="text-4xl font-bold text-center mb-12">Fonctionnalités Principales</h2>
+        <h2 className="text-4xl font-bold text-center mb-12">{t('home_features')} Principales</h2>
         <div className="grid md:grid-cols-3 gap-8">
           <Card>
             <CardHeader>
@@ -164,7 +171,7 @@ export default function HomePage() {
 
       {/* Pricing Section */}
       <section id="pricing" className="container mx-auto px-4 py-20 bg-gray-50">
-        <h2 className="text-4xl font-bold text-center mb-12">Tarifs Transparents</h2>
+        <h2 className="text-4xl font-bold text-center mb-12">{t('home_pricing')} Transparents</h2>
         <div className="grid md:grid-cols-4 gap-6 max-w-6xl mx-auto">
           <Card>
             <CardHeader>
@@ -246,8 +253,8 @@ export default function HomePage() {
           <div className="grid md:grid-cols-4 gap-8">
             <div>
               <div className="flex items-center space-x-2 mb-4">
-                <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-                  <span className="text-white font-bold">E</span>
+                <div className="w-8 h-8 bg-primary rounded-lg flex items-center justify-center">
+                  <span className="text-primary-foreground font-bold">E</span>
                 </div>
                 <span className="text-lg font-bold">EstateMind</span>
               </div>
@@ -258,8 +265,8 @@ export default function HomePage() {
             <div>
               <h3 className="font-semibold mb-4">Produit</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li><Link href="#features">Fonctionnalités</Link></li>
-                <li><Link href="#pricing">Tarifs</Link></li>
+                <li><Link href="#features">{t('home_features')}</Link></li>
+                <li><Link href="#pricing">{t('home_pricing')}</Link></li>
                 <li><Link href="/properties">Propriétés</Link></li>
               </ul>
             </div>
@@ -274,7 +281,7 @@ export default function HomePage() {
             <div>
               <h3 className="font-semibold mb-4">Entreprise</h3>
               <ul className="space-y-2 text-sm text-gray-600">
-                <li><Link href="/about">À propos</Link></li>
+                <li><Link href="/about">{t('home_about')}</Link></li>
                 <li><Link href="/contact">Contact</Link></li>
                 <li><Link href="/legal">Mentions légales</Link></li>
               </ul>
